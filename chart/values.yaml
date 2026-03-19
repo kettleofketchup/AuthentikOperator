@@ -1,0 +1,52 @@
+image:
+  repository: ghcr.io/kettleofketchup/authentik-operator
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+authentik:
+  # REQUIRED: Base URL of the Authentik instance
+  url: ""
+  # Name of the K8s secret containing the bootstrap token (AUTHENTIK_BOOTSTRAP_TOKEN)
+  # This secret must exist in the SAME namespace as the operator
+  bootstrapSecretRef: authentik-bootstrap
+  # Key within the bootstrap secret that holds the token
+  bootstrapSecretKey: bootstrap_token
+
+tokenSecretName: authentik-operator-token
+
+reconcileInterval: 5m
+
+bootstrap:
+  enabled: true
+  # Seconds after completion before K8s cleans up the Job (for non-ArgoCD users)
+  ttlSecondsAfterFinished: 300
+  # Upper bound on bootstrap retry duration
+  activeDeadlineSeconds: 600
+
+serviceAccount:
+  create: true
+  name: authentik-operator
+  annotations: {}
+
+leaderElect: true
+
+healthProbePort: 8081
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+podLabels: {}

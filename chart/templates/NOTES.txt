@@ -1,0 +1,39 @@
+AuthentikOperator has been installed.
+
+{{- if .Values.bootstrap.enabled }}
+
+Bootstrap Job:
+  The bootstrap job will create the operator's Authentik API token.
+
+  PREREQUISITE: Your Authentik instance must have been started with the
+  AUTHENTIK_BOOTSTRAP_TOKEN env var set, and the same token value must
+  be stored in the K8s secret "{{ .Values.authentik.bootstrapSecretRef }}"
+  (key: "{{ .Values.authentik.bootstrapSecretKey }}") in this namespace.
+
+  Check its status:
+    kubectl get jobs -n {{ .Release.Namespace }} {{ include "authentik-operator.fullname" . }}-bootstrap
+
+  Verify the token secret was created:
+    kubectl get secret -n {{ .Release.Namespace }} {{ .Values.tokenSecretName }}
+{{- end }}
+
+Operator:
+  Check the operator is running:
+    kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "authentik-operator.name" . }}
+
+Create an OIDCClient:
+  apiVersion: auth.kettleofketchup/v1alpha1
+  kind: OIDCClient
+  metadata:
+    name: my-app-oidc
+  spec:
+    authentik:
+      applicationSlug: my-app
+    target:
+      namespace: my-app-ns
+      secretName: my-app-oauth
+    secretProfile: generic
+
+Note: CRDs in chart/crds/ are only installed on 'helm install', not updated
+on 'helm upgrade'. To update CRDs after a version upgrade:
+  kubectl apply -f chart/crds/

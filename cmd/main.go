@@ -30,6 +30,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -225,7 +226,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	authentikToken := os.Getenv("AUTHENTIK_TOKEN")
+	var authentikToken string
+	if envToken := os.Getenv("AUTHENTIK_TOKEN"); envToken != "" {
+		authentikToken = envToken
+	} else {
+		tokenSecret := &corev1.Secret{}
+		namespace := os.Getenv("POD_NAMESPACE")
+		if namespace == "" {
+			namespace = "default"
+		}
+		err := mgr.GetAPIReader().Get(context.Background(), types.NamespacedName{
+			Name:      authentikTokenSecret,
+			Namespace: namespace,
+		}, tokenSecret)
+		if err != nil {
+			setupLog.Info("Authentik token secret not found, operator will retry on reconcile", "error", err)
+		} else {
+			authentikToken = string(tokenSecret.Data["token"])
+		}
+	}
 
 	authentikClient := authentik.NewClient(authentikURL, authentikToken)
 

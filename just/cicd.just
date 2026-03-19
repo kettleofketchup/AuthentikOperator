@@ -48,5 +48,5 @@ docker-push tag=DOCKER_TAG: (docker tag)
 [group('cicd')]
 pages:
     @echo "Building documentation..."
-    uv sync
-    uv run mkdocs build
+    uv sync --project .
+    uv run --project . mkdocs build

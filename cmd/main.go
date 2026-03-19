@@ -17,8 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"os"
 	"time"
 
@@ -26,10 +28,12 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -38,6 +42,7 @@ import (
 
 	authv1alpha1 "github.com/kettleofketchup/AuthentikOperator/api/v1alpha1"
 	"github.com/kettleofketchup/AuthentikOperator/internal/authentik"
+	"github.com/kettleofketchup/AuthentikOperator/internal/bootstrap"
 	"github.com/kettleofketchup/AuthentikOperator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
@@ -64,6 +69,7 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
+	var bootstrapMode bool
 	var authentikURL string
 	var authentikTokenSecret string
 	var reconcileInterval time.Duration
@@ -84,6 +90,7 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.BoolVar(&bootstrapMode, "bootstrap", false, "Run in bootstrap mode to create Authentik API token")
 	flag.StringVar(&authentikURL, "authentik-url", "", "Authentik base URL")
 	flag.StringVar(&authentikTokenSecret, "authentik-token-secret", "authentik-operator-token", "Name of the secret containing the Authentik API token")
 	flag.DurationVar(&reconcileInterval, "reconcile-interval", 5*time.Minute, "Reconciliation interval")
@@ -94,6 +101,38 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	if bootstrapMode {
+		fmt.Println("Running in bootstrap mode")
+		cfg := ctrl.GetConfigOrDie()
+		scheme := runtime.NewScheme()
+		corev1.AddToScheme(scheme)
+
+		c, err := client.New(cfg, client.Options{Scheme: scheme})
+		if err != nil {
+			setupLog.Error(err, "unable to create client")
+			os.Exit(1)
+		}
+
+		namespace := os.Getenv("POD_NAMESPACE")
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		bsCfg := bootstrap.Config{
+			AuthentikURL:    os.Getenv("AUTHENTIK_URL"),
+			BootstrapToken:  os.Getenv("AUTHENTIK_BOOTSTRAP_TOKEN"),
+			TokenIdentifier: "authentik-operator",
+			TokenSecretName: os.Getenv("TOKEN_SECRET_NAME"),
+			Namespace:       namespace,
+		}
+
+		if err := bootstrap.Run(context.Background(), c, bsCfg); err != nil {
+			setupLog.Error(err, "bootstrap failed")
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will

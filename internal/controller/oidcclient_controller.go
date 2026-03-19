@@ -19,6 +19,7 @@ import (
 	"github.com/kettleofketchup/AuthentikOperator/internal/authentik"
 	"github.com/kettleofketchup/AuthentikOperator/internal/hash"
 	"github.com/kettleofketchup/AuthentikOperator/internal/profiles"
+	"github.com/kettleofketchup/AuthentikOperator/internal/rollout"
 )
 
 // OIDCClientReconciler reconciles an OIDCClient object
@@ -147,7 +148,34 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	logger.Info("secret synced", "name", targetName, "namespace", targetNS)
 
-	// 6. Update status
+	// 6. Trigger rollout restart if enabled and secret changed
+	if oidcClient.Spec.RolloutRestart != nil &&
+		oidcClient.Spec.RolloutRestart.Enabled &&
+		oidcClient.Spec.RolloutRestart.TargetRef != nil {
+
+		ref := oidcClient.Spec.RolloutRestart.TargetRef
+		if err := rollout.TriggerRollout(ctx, r.Client, ref.Kind, ref.Name, ref.Namespace, newHash); err != nil {
+			logger.Error(err, "failed to trigger rollout restart",
+				"kind", ref.Kind, "name", ref.Name, "namespace", ref.Namespace)
+			meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
+				Type:               "RolloutTriggered",
+				Status:             metav1.ConditionFalse,
+				Reason:             "RolloutFailed",
+				Message:            fmt.Sprintf("Failed to trigger rollout: %v", err),
+				ObservedGeneration: oidcClient.Generation,
+			})
+		} else {
+			meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
+				Type:               "RolloutTriggered",
+				Status:             metav1.ConditionTrue,
+				Reason:             "Triggered",
+				Message:            fmt.Sprintf("Rollout triggered for %s/%s", ref.Kind, ref.Name),
+				ObservedGeneration: oidcClient.Generation,
+			})
+		}
+	}
+
+	// 7. Update status
 	now := metav1.Now()
 	oidcClient.Status.SecretHash = newHash
 	oidcClient.Status.LastSyncTime = &now

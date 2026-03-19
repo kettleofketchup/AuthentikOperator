@@ -93,7 +93,8 @@ func main() {
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.BoolVar(&bootstrapMode, "bootstrap", false, "Run in bootstrap mode to create Authentik API token")
 	flag.StringVar(&authentikURL, "authentik-url", "", "Authentik base URL")
-	flag.StringVar(&authentikTokenSecret, "authentik-token-secret", "authentik-operator-token", "Name of the secret containing the Authentik API token")
+	flag.StringVar(&authentikTokenSecret, "authentik-token-secret",
+		"authentik-operator-token", "Name of the secret containing the Authentik API token")
 	flag.DurationVar(&reconcileInterval, "reconcile-interval", 5*time.Minute, "Reconciliation interval")
 	opts := zap.Options{
 		Development: false,
@@ -128,7 +129,7 @@ func main() {
 			Namespace:       namespace,
 		}
 
-		if err := bootstrap.Run(context.Background(), c, bsCfg, setupLog); err != nil {
+		if err := bootstrap.Run(ctrl.LoggerInto(context.Background(), setupLog), c, bsCfg); err != nil {
 			setupLog.Error(err, "bootstrap failed")
 			os.Exit(1)
 		}

@@ -29,7 +29,7 @@ func TestGetOAuth2ProviderBySlug(t *testing.T) {
 				Slug: "grafana",
 				Name: "Grafana",
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 
 		case "/api/v3/providers/oauth2/":
 			// Step 2: Get providers filtered by application PK
@@ -50,7 +50,7 @@ func TestGetOAuth2ProviderBySlug(t *testing.T) {
 					},
 				},
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 
 		default:
 			t.Errorf("unexpected path: %s", r.URL.Path)
@@ -76,7 +76,7 @@ func TestGetOAuth2ProviderBySlug_AppNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v3/core/applications/nonexistent/" {
 			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(`{"detail": "Not found."}`))
+			_, _ = w.Write([]byte(`{"detail": "Not found."}`))
 			return
 		}
 		http.NotFound(w, r)
@@ -99,10 +99,10 @@ func TestGetOAuth2ProviderBySlug_NoProviders(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v3/core/applications/grafana/":
 			resp := ApplicationResponse{PK: "a1b2c3d4-0001-0000-0000-000000000001", Slug: "grafana", Name: "Grafana"}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		case "/api/v3/providers/oauth2/":
 			resp := ProviderListResponse{Pagination: Pagination{Count: 0}, Results: []OAuth2Provider{}}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		}
 	}))
 	defer server.Close()
@@ -146,14 +146,14 @@ func TestCreateAPIToken(t *testing.T) {
 				Identifier: "authentik-operator",
 			}
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 
 		case r.URL.Path == "/api/v3/core/tokens/authentik-operator/view_key/" && r.Method == http.MethodGet:
 			// Separate call to retrieve the actual key
 			resp := TokenViewKeyResponse{
 				Key: "generated-api-key-789",
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 
 		default:
 			t.Errorf("unexpected: %s %s", r.Method, r.URL.Path)
@@ -180,12 +180,12 @@ func TestCreateAPIToken_AlreadyExists(t *testing.T) {
 		case r.URL.Path == "/api/v3/core/tokens/" && r.Method == http.MethodPost:
 			// 400 — token with this identifier already exists
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"identifier": ["token with this identifier already exists."]}`))
+			_, _ = w.Write([]byte(`{"identifier": ["token with this identifier already exists."]}`))
 
 		case r.URL.Path == "/api/v3/core/tokens/authentik-operator/view_key/" && r.Method == http.MethodGet:
 			// Fall back to retrieving existing token's key
 			resp := TokenViewKeyResponse{Key: "existing-key-456"}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 
 		default:
 			http.NotFound(w, r)

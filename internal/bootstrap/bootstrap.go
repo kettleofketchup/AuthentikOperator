@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kettleofketchup/AuthentikOperator/internal/authentik"
@@ -28,7 +28,8 @@ type Config struct {
 // 2. Create API token in Authentik using Bearer auth
 // 3. Retrieve the token key via view_key endpoint
 // 4. Write token to K8s Secret
-func Run(ctx context.Context, c client.Client, cfg Config, log logr.Logger) error {
+func Run(ctx context.Context, c client.Client, cfg Config) error {
+	log := ctrl.LoggerFrom(ctx)
 	// Check if secret already exists
 	existing := &corev1.Secret{}
 	err := c.Get(ctx, types.NamespacedName{Name: cfg.TokenSecretName, Namespace: cfg.Namespace}, existing)

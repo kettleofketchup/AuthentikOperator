@@ -1,5 +1,7 @@
 package profiles
 
+import "maps"
+
 // Apply maps OIDCData to a secret data map using the named profile,
 // then merges overrides on top.
 func Apply(profileName string, data OIDCData, overrides map[string]string) map[string]string {
@@ -16,9 +18,7 @@ func Apply(profileName string, data OIDCData, overrides map[string]string) map[s
 		result = generic(data)
 	}
 
-	for k, v := range overrides {
-		result[k] = v
-	}
+	maps.Copy(result, overrides)
 
 	return result
 }

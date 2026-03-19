@@ -60,7 +60,7 @@ func (c *Client) GetOAuth2ProviderBySlug(ctx context.Context, slug string) (*OAu
 	if err != nil {
 		return nil, fmt.Errorf("fetching application: %w", err)
 	}
-	defer appResp.Body.Close()
+	defer appResp.Body.Close() //nolint:errcheck
 
 	if appResp.StatusCode == http.StatusNotFound {
 		return nil, ErrProviderNotFound
@@ -88,7 +88,7 @@ func (c *Client) GetOAuth2ProviderBySlug(ctx context.Context, slug string) (*OAu
 	if err != nil {
 		return nil, fmt.Errorf("fetching providers: %w", err)
 	}
-	defer provResp.Body.Close()
+	defer provResp.Body.Close() //nolint:errcheck
 
 	if provResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(provResp.Body, 1<<20))
@@ -143,7 +143,7 @@ func (c *Client) CreateAPIToken(ctx context.Context, identifier string) (string,
 	if err != nil {
 		return "", fmt.Errorf("executing request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	switch resp.StatusCode {
 	case http.StatusCreated, http.StatusOK:
@@ -167,8 +167,8 @@ func (c *Client) CreateAPIToken(ctx context.Context, identifier string) (string,
 
 // viewTokenKey retrieves the key for an existing token.
 func (c *Client) viewTokenKey(ctx context.Context, identifier string) (string, error) {
-	url := fmt.Sprintf("%s/api/v3/core/tokens/%s/view_key/", c.baseURL, url.PathEscape(identifier))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	viewURL := fmt.Sprintf("%s/api/v3/core/tokens/%s/view_key/", c.baseURL, url.PathEscape(identifier))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, viewURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("creating view_key request: %w", err)
 	}
@@ -178,7 +178,7 @@ func (c *Client) viewTokenKey(ctx context.Context, identifier string) (string, e
 	if err != nil {
 		return "", fmt.Errorf("fetching token key: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))

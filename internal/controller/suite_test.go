@@ -52,7 +52,7 @@ var _ = BeforeSuite(func() {
 		case "/api/v3/core/applications/grafana/":
 			// Step 1: Return application with PK
 			resp := authentik.ApplicationResponse{PK: "a1b2c3d4-0001-0000-0000-000000000001", Slug: "grafana", Name: "Grafana"}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 
 		case "/api/v3/providers/oauth2/":
 			// Step 2: Return providers filtered by application PK
@@ -71,19 +71,19 @@ var _ = BeforeSuite(func() {
 						},
 					},
 				}
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 			} else {
 				resp := authentik.ProviderListResponse{
 					Pagination: authentik.Pagination{Count: 0},
 					Results:    []authentik.OAuth2Provider{},
 				}
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 			}
 
 		default:
 			// Unknown applications return 404
 			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(`{"detail":"Not found."}`))
+			_, _ = w.Write([]byte(`{"detail":"Not found."}`))
 		}
 	}))
 

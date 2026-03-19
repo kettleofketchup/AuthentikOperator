@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
-	"fmt"
 	"os"
 	"time"
 
@@ -105,7 +104,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	if bootstrapMode {
-		fmt.Println("Running in bootstrap mode")
+		setupLog.Info("Running in bootstrap mode")
 		cfg := ctrl.GetConfigOrDie()
 		scheme := runtime.NewScheme()
 		utilruntime.Must(corev1.AddToScheme(scheme))
@@ -137,8 +136,7 @@ func main() {
 	}
 
 	if authentikURL == "" {
-		setupLog.Error(fmt.Errorf("--authentik-url is required"), "missing required flag")
-		os.Exit(1)
+		setupLog.Info("WARNING: --authentik-url not set, reconciliation will fail until configured")
 	}
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled

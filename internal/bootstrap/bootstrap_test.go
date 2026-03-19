@@ -37,11 +37,11 @@ func TestBootstrap(t *testing.T) {
 				Identifier: "authentik-operator",
 			}
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 
 		case r.URL.Path == "/api/v3/core/tokens/authentik-operator/view_key/" && r.Method == http.MethodGet:
 			resp := authentik.TokenViewKeyResponse{Key: "new-api-key-123"}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 
 		default:
 			http.NotFound(w, r)

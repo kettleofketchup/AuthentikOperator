@@ -11,10 +11,31 @@ spec:
     kind: OIDCClient
     listKind: OIDCClientList
     plural: oidcclients
+    shortNames:
+    - oidc
     singular: oidcclient
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.authentik.applicationSlug
+      name: Slug
+      type: string
+    - jsonPath: .spec.secretProfile
+      name: Profile
+      type: string
+    - jsonPath: .spec.target.namespace
+      name: Target NS
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="AuthentikProviderFound")].status
+      name: Ready
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="SecretSynced")].status
+      name: Synced
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: OIDCClient is the Schema for the oidcclients API
@@ -37,27 +58,89 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of OIDCClient
+            description: OIDCClientSpec defines the desired state of OIDCClient
             properties:
-              foo:
-                description: foo is an example field of OIDCClient. Edit oidcclient_types.go
-                  to remove/update
+              authentik:
+                description: Authentik defines which Authentik application to read
+                  from
+                properties:
+                  applicationSlug:
+                    description: ApplicationSlug is the slug of the Authentik application
+                    minLength: 1
+                    type: string
+                required:
+                - applicationSlug
+                type: object
+              rolloutRestart:
+                description: RolloutRestart configures automatic workload restart
+                  on secret changes
+                properties:
+                  enabled:
+                    default: false
+                    description: Enabled controls whether rollout restart is active
+                    type: boolean
+                  targetRef:
+                    description: TargetRef identifies the workload to restart
+                    properties:
+                      kind:
+                        description: Kind of the target (Deployment or StatefulSet)
+                        enum:
+                        - Deployment
+                        - StatefulSet
+                        type: string
+                      name:
+                        description: Name of the target resource
+                        type: string
+                      namespace:
+                        description: Namespace of the target resource
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    - namespace
+                    type: object
+                required:
+                - enabled
+                type: object
+              secretOverrides:
+                additionalProperties:
+                  type: string
+                description: SecretOverrides adds or overrides keys in the generated
+                  secret
+                type: object
+              secretProfile:
+                default: generic
+                description: SecretProfile selects a built-in key mapping profile
+                enum:
+                - grafana
+                - openwebui
+                - argocd
+                - generic
                 type: string
+              target:
+                description: Target defines where to write the OIDC credentials
+                properties:
+                  namespace:
+                    description: Namespace to create the secret in
+                    type: string
+                  secretName:
+                    description: SecretName is the name of the Secret to create/update
+                    type: string
+                required:
+                - namespace
+                - secretName
+                type: object
+            required:
+            - authentik
+            - secretProfile
+            - target
             type: object
           status:
-            description: status defines the observed state of OIDCClient
+            description: OIDCClientStatus defines the observed state of OIDCClient
             properties:
               conditions:
-                description: |-
-                  conditions represent the current state of the OIDCClient resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                description: Conditions represent the latest observations of the resource's
+                  state
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -116,9 +199,15 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              lastSyncTime:
+                description: LastSyncTime is the last time the operator synced with
+                  Authentik
+                format: date-time
+                type: string
+              secretHash:
+                description: SecretHash is the SHA256 hash of the current secret data
+                type: string
             type: object
-        required:
-        - spec
         type: object
     served: true
     storage: true

@@ -20,62 +20,107 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// AuthentikSource defines which Authentik application to read from
+type AuthentikSource struct {
+	// ApplicationSlug is the slug of the Authentik application
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	ApplicationSlug string `json:"applicationSlug"`
+}
+
+// SecretTarget defines where to write the OIDC credentials
+type SecretTarget struct {
+	// Namespace to create the secret in
+	// +kubebuilder:validation:Required
+	Namespace string `json:"namespace"`
+
+	// SecretName is the name of the Secret to create/update
+	// +kubebuilder:validation:Required
+	SecretName string `json:"secretName"`
+}
+
+// RolloutTargetRef identifies the workload to restart
+type RolloutTargetRef struct {
+	// Kind of the target (Deployment or StatefulSet)
+	// +kubebuilder:validation:Enum=Deployment;StatefulSet
+	Kind string `json:"kind"`
+
+	// Name of the target resource
+	Name string `json:"name"`
+
+	// Namespace of the target resource
+	Namespace string `json:"namespace"`
+}
+
+// RolloutRestart configures automatic workload restart on secret changes
+type RolloutRestart struct {
+	// Enabled controls whether rollout restart is active
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled"`
+
+	// TargetRef identifies the workload to restart
+	// +optional
+	TargetRef *RolloutTargetRef `json:"targetRef,omitempty"`
+}
 
 // OIDCClientSpec defines the desired state of OIDCClient
 type OIDCClientSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
+	// Authentik defines which Authentik application to read from
+	// +kubebuilder:validation:Required
+	Authentik AuthentikSource `json:"authentik"`
 
-	// foo is an example field of OIDCClient. Edit oidcclient_types.go to remove/update
+	// Target defines where to write the OIDC credentials
+	// +kubebuilder:validation:Required
+	Target SecretTarget `json:"target"`
+
+	// SecretProfile selects a built-in key mapping profile
+	// +kubebuilder:validation:Enum=grafana;openwebui;argocd;generic
+	// +kubebuilder:default=generic
+	SecretProfile string `json:"secretProfile"`
+
+	// SecretOverrides adds or overrides keys in the generated secret
 	// +optional
-	Foo *string `json:"foo,omitempty"`
+	SecretOverrides map[string]string `json:"secretOverrides,omitempty"`
+
+	// RolloutRestart configures automatic workload restart on secret changes
+	// +optional
+	RolloutRestart *RolloutRestart `json:"rolloutRestart,omitempty"`
 }
 
-// OIDCClientStatus defines the observed state of OIDCClient.
+// OIDCClientStatus defines the observed state of OIDCClient
 type OIDCClientStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
-	// conditions represent the current state of the OIDCClient resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
+	// Conditions represent the latest observations of the resource's state
+	// +optional
 	// +listType=map
 	// +listMapKey=type
-	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// LastSyncTime is the last time the operator synced with Authentik
+	// +optional
+	LastSyncTime *metav1.Time `json:"lastSyncTime,omitempty"`
+
+	// SecretHash is the SHA256 hash of the current secret data
+	// +optional
+	SecretHash string `json:"secretHash,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Slug",type=string,JSONPath=`.spec.authentik.applicationSlug`
+// +kubebuilder:printcolumn:name="Profile",type=string,JSONPath=`.spec.secretProfile`
+// +kubebuilder:printcolumn:name="Target NS",type=string,JSONPath=`.spec.target.namespace`
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="AuthentikProviderFound")].status`
+// +kubebuilder:printcolumn:name="Synced",type=string,JSONPath=`.status.conditions[?(@.type=="SecretSynced")].status`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:resource:shortName=oidc
 
 // OIDCClient is the Schema for the oidcclients API
 type OIDCClient struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// metadata is a standard object metadata
-	// +optional
-	metav1.ObjectMeta `json:"metadata,omitzero"`
-
-	// spec defines the desired state of OIDCClient
-	// +required
-	Spec OIDCClientSpec `json:"spec"`
-
-	// status defines the observed state of OIDCClient
-	// +optional
-	Status OIDCClientStatus `json:"status,omitzero"`
+	Spec   OIDCClientSpec   `json:"spec,omitempty"`
+	Status OIDCClientStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -83,7 +128,7 @@ type OIDCClient struct {
 // OIDCClientList contains a list of OIDCClient
 type OIDCClientList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitzero"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []OIDCClient `json:"items"`
 }
 

@@ -39,3 +39,7 @@ node_modules/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Kubebuilder / envtest
+testbin/
+cover.out

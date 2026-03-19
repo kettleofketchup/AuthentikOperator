@@ -11,9 +11,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install just
-        uses: extractions/setup-just@v2
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -25,15 +22,12 @@ jobs:
           install-only: true
 
       - name: Lint
-        run: just cicd::lint
+        run: golangci-lint run --timeout 5m ./...
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install just
-        uses: extractions/setup-just@v2
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -41,15 +35,12 @@ jobs:
           go-version: '1.23'
 
       - name: Test
-        run: just cicd::test
+        run: make test
 
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install just
-        uses: extractions/setup-just@v2
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -57,12 +48,12 @@ jobs:
           go-version: '1.23'
 
       - name: Build
-        run: just cicd::build
+        run: make build
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: AuthentikOperator
+          name: manager
           path: bin/
 
   docker:
@@ -75,9 +66,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install just
-        uses: extractions/setup-just@v2
-
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -87,11 +75,11 @@ jobs:
 
       - name: Build and push
         run: |
-          TAG="ghcr.io/kettleofketchup/AuthentikOperator/AuthentikOperator:${GITHUB_REF_NAME}"
-          just cicd::docker $TAG
+          TAG="ghcr.io/kettleofketchup/authentik-operator:${GITHUB_REF_NAME}"
+          docker build -t $TAG -f Dockerfile .
           docker push $TAG
           if echo "${GITHUB_REF_NAME}" | grep -qE '^v[0-9]+\.[0-9]+'; then
-            LATEST="ghcr.io/kettleofketchup/AuthentikOperator/AuthentikOperator:latest"
+            LATEST="ghcr.io/kettleofketchup/authentik-operator:latest"
             docker tag $TAG $LATEST
             docker push $LATEST
           fi

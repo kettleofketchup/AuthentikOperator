@@ -1,43 +1,30 @@
 # Go build, test, and lint recipes
 # Call as: just go::build, just go::test, etc.
 
-# Version information from git
-VERSION := `git describe --tags --always 2>/dev/null || echo "dev"`
-COMMIT := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
-DATE := `date -u +%Y-%m-%dT%H:%M:%SZ`
+# Build the Go binary (delegates to Kubebuilder Makefile)
+build:
+    @echo "Building operator..."
+    make build
 
-# ldflags for version injection
-VERSION_PKG := "github.com/kettleofketchup/AuthentikOperator/src/AuthentikOperator/version"
-LDFLAGS := "-s -w -X " + VERSION_PKG + ".Version=" + VERSION + " -X " + VERSION_PKG + ".Commit=" + COMMIT + " -X " + VERSION_PKG + ".BuildDate=" + DATE
-TOOL_FOLDER := env_var("PWD") + "/src/AuthentikOperator"
-BIN_DIR := env_var("PWD") + "/bin"
-
-# Build the Go binary
-build tool: (tidy tool)
-    @echo "Building {{ tool }}..."
-    @mkdir -p {{ BIN_DIR }}
-    cd {{ TOOL_FOLDER }} && go build -trimpath -o {{ BIN_DIR }}/{{ tool }} -ldflags "{{ LDFLAGS }}" .
-    @echo "Built: {{ BIN_DIR }}/{{ tool }}"
-
-# Run tests
-test tool:
+# Run tests (delegates to Kubebuilder Makefile for envtest support)
+test:
     @echo "Running tests..."
-    cd {{ TOOL_FOLDER }} && go test -race -cover -v ./...
+    make test
 
-# Run linter (formats first)
-lint tool: (format tool)
+# Run linter
+lint: format
     @echo "Linting..."
-    cd {{ TOOL_FOLDER }} && golangci-lint run
+    golangci-lint run ./...
 
 # Format code
-format tool:
+format:
     @echo "Formatting code..."
-    cd {{ TOOL_FOLDER }} && go fmt ./...
+    go fmt ./...
 
 # Tidy Go modules
-tidy tool:
+tidy:
     @echo "Tidying modules..."
-    cd {{ TOOL_FOLDER }} && go mod tidy
+    go mod tidy
 
 # Clean build artifacts
 clean:
@@ -45,3 +32,4 @@ clean:
     go clean
     rm -rf bin/
     rm -rf dist/
+    rm -rf testbin/

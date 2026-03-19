@@ -1,4 +1,4 @@
-# AuthentikOperator - Go CLI project
+# AuthentikOperator - Kubernetes Operator
 # Run `just --list` to see all available recipes
 
 set quiet
@@ -19,32 +19,35 @@ mod copier 'just/copier.just'
 import 'just/dev.just'
 
 # Variables
-TOOL_NAME := "AuthentikOperator"
-PROJECT_NAME := "AuthentikOperator"
-TOOL_FOLDER := env_var("PWD") + "/src/" + TOOL_NAME
+TOOL_NAME := "manager"
 
 # List all available recipes
 default:
     just --list
 
-# Build the CLI binary (alias for go::build)
+# Build the operator binary (wraps make build)
 [group('dev')]
 build:
-    just go::build {{ TOOL_NAME }}
+    make build
 
-# Run tests (alias for go::test)
+# Run tests (wraps make test — includes envtest setup)
 [group('dev')]
 [group('ci')]
 test:
-    just go::test {{ TOOL_NAME }}
+    make test
 
-# Run linter (alias for go::lint)
+# Run linter
 [group('dev')]
 [group('ci')]
 lint:
-    just go::lint {{ TOOL_NAME }}
+    just go::lint
 
-# Build and run the binary
+# Generate CRD manifests and deepcopy methods
+[group('dev')]
+generate:
+    make manifests generate
+
+# Build and run locally (outside cluster)
 [group('dev')]
 run: build
     ./bin/{{ TOOL_NAME }}

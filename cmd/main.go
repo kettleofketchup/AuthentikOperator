@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -36,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	authv1alpha1 "github.com/kettleofketchup/AuthentikOperator/api/v1alpha1"
+	"github.com/kettleofketchup/AuthentikOperator/internal/authentik"
 	"github.com/kettleofketchup/AuthentikOperator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
@@ -62,6 +64,9 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
+	var authentikURL string
+	var authentikTokenSecret string
+	var reconcileInterval time.Duration
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -79,6 +84,9 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.StringVar(&authentikURL, "authentik-url", "", "Authentik base URL")
+	flag.StringVar(&authentikTokenSecret, "authentik-token-secret", "authentik-operator-token", "Name of the secret containing the Authentik API token")
+	flag.DurationVar(&reconcileInterval, "reconcile-interval", 5*time.Minute, "Reconciliation interval")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -178,9 +186,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	authentikToken := os.Getenv("AUTHENTIK_TOKEN")
+
+	authentikClient := authentik.NewClient(authentikURL, authentikToken)
+
 	if err := (&controller.OIDCClientReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		AuthentikClient:   authentikClient,
+		AuthentikURL:      authentikURL,
+		ReconcileInterval: reconcileInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "OIDCClient")
 		os.Exit(1)

@@ -29,16 +29,16 @@ func grafana(data OIDCData) map[string]string {
 		"GF_AUTH_GENERIC_OAUTH_NAME":          "authentik",
 		"GF_AUTH_GENERIC_OAUTH_CLIENT_ID":     data.ClientID,
 		"GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET": data.ClientSecret,
-		"GF_AUTH_GENERIC_OAUTH_AUTH_URL":       data.AuthorizeURL,
-		"GF_AUTH_GENERIC_OAUTH_TOKEN_URL":      data.TokenURL,
-		"GF_AUTH_GENERIC_OAUTH_API_URL":        data.UserinfoURL,
-		"GF_AUTH_GENERIC_OAUTH_SCOPES":         data.Scopes,
+		"GF_AUTH_GENERIC_OAUTH_AUTH_URL":      data.AuthorizeURL,
+		"GF_AUTH_GENERIC_OAUTH_TOKEN_URL":     data.TokenURL,
+		"GF_AUTH_GENERIC_OAUTH_API_URL":       data.UserinfoURL,
+		"GF_AUTH_GENERIC_OAUTH_SCOPES":        data.Scopes,
 	}
 }
 
 func openwebui(data OIDCData) map[string]string {
 	return map[string]string{
-		"ENABLE_OAUTH_SIGNUP":  "true",
+		"ENABLE_OAUTH_SIGNUP": "true",
 		"OAUTH_PROVIDER_NAME": "authentik",
 		"OAUTH_CLIENT_ID":     data.ClientID,
 		"OAUTH_CLIENT_SECRET": data.ClientSecret,

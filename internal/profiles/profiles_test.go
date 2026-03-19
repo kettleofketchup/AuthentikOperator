@@ -45,10 +45,10 @@ func TestGrafanaProfile(t *testing.T) {
 		"GF_AUTH_GENERIC_OAUTH_NAME":          "authentik",
 		"GF_AUTH_GENERIC_OAUTH_CLIENT_ID":     "test-client-id",
 		"GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET": "test-client-secret",
-		"GF_AUTH_GENERIC_OAUTH_AUTH_URL":       "https://auth.example.com/application/o/authorize/",
-		"GF_AUTH_GENERIC_OAUTH_TOKEN_URL":      "https://auth.example.com/application/o/token/",
-		"GF_AUTH_GENERIC_OAUTH_API_URL":        "https://auth.example.com/application/o/userinfo/",
-		"GF_AUTH_GENERIC_OAUTH_SCOPES":         "openid email profile",
+		"GF_AUTH_GENERIC_OAUTH_AUTH_URL":      "https://auth.example.com/application/o/authorize/",
+		"GF_AUTH_GENERIC_OAUTH_TOKEN_URL":     "https://auth.example.com/application/o/token/",
+		"GF_AUTH_GENERIC_OAUTH_API_URL":       "https://auth.example.com/application/o/userinfo/",
+		"GF_AUTH_GENERIC_OAUTH_SCOPES":        "openid email profile",
 	}
 
 	for key, expected := range checks {
@@ -63,7 +63,7 @@ func TestOpenWebUIProfile(t *testing.T) {
 	result := Apply("openwebui", data, nil)
 
 	checks := map[string]string{
-		"ENABLE_OAUTH_SIGNUP":  "true",
+		"ENABLE_OAUTH_SIGNUP": "true",
 		"OAUTH_PROVIDER_NAME": "authentik",
 		"OAUTH_CLIENT_ID":     "test-client-id",
 		"OAUTH_CLIENT_SECRET": "test-client-secret",

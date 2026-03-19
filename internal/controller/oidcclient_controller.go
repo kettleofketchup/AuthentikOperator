@@ -1,63 +1,182 @@
-/*
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controller
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	authv1alpha1 "github.com/kettleofketchup/AuthentikOperator/api/v1alpha1"
+	"github.com/kettleofketchup/AuthentikOperator/internal/authentik"
+	"github.com/kettleofketchup/AuthentikOperator/internal/hash"
+	"github.com/kettleofketchup/AuthentikOperator/internal/profiles"
 )
 
-// OIDCClientReconciler reconciles a OIDCClient object
+// OIDCClientReconciler reconciles an OIDCClient object
 type OIDCClientReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme            *runtime.Scheme
+	AuthentikClient   *authentik.Client
+	AuthentikURL      string
+	ReconcileInterval time.Duration
 }
 
 // +kubebuilder:rbac:groups=auth.kettleofketchup,resources=oidcclients,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=auth.kettleofketchup,resources=oidcclients/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=auth.kettleofketchup,resources=oidcclients/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=apps,resources=deployments;statefulsets,verbs=get;update;patch
+// +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch;create;update;patch;delete
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the OIDCClient object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	requeueInterval := r.ReconcileInterval
+	if requeueInterval == 0 {
+		requeueInterval = 5 * time.Minute
+	}
 
-	return ctrl.Result{}, nil
+	// 1. Get the CR
+	oidcClient := &authv1alpha1.OIDCClient{}
+	if err := r.Get(ctx, req.NamespacedName, oidcClient); err != nil {
+		if errors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	// 2. Fetch provider from Authentik (two-step: app by slug, then provider by app PK)
+	slug := oidcClient.Spec.Authentik.ApplicationSlug
+	provider, err := r.AuthentikClient.GetOAuth2ProviderBySlug(ctx, slug)
+	if err != nil {
+		logger.Error(err, "failed to fetch Authentik provider", "slug", slug)
+		meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
+			Type:               "AuthentikProviderFound",
+			Status:             metav1.ConditionFalse,
+			Reason:             "ProviderNotFound",
+			Message:            fmt.Sprintf("Failed to fetch provider for slug %q: %v", slug, err),
+			ObservedGeneration: oidcClient.Generation,
+		})
+		_ = r.Status().Update(ctx, oidcClient)
+		return ctrl.Result{RequeueAfter: requeueInterval}, nil
+	}
+
+	// Provider found
+	meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
+		Type:               "AuthentikProviderFound",
+		Status:             metav1.ConditionTrue,
+		Reason:             "Found",
+		Message:            fmt.Sprintf("Provider %q found for slug %q", provider.Name, slug),
+		ObservedGeneration: oidcClient.Generation,
+	})
+
+	// 3. Build OIDC data and apply profile
+	oidcData := profiles.BuildOIDCData(r.AuthentikURL, slug, provider.ClientID, provider.ClientSecret)
+	secretData := profiles.Apply(oidcClient.Spec.SecretProfile, oidcData, oidcClient.Spec.SecretOverrides)
+
+	// 4. Compute hash and compare
+	newHash := hash.ComputeSecretHash(secretData)
+	if newHash == oidcClient.Status.SecretHash {
+		return ctrl.Result{RequeueAfter: requeueInterval}, nil
+	}
+
+	// 5. Create or update the target secret
+	targetNS := oidcClient.Spec.Target.Namespace
+	targetName := oidcClient.Spec.Target.SecretName
+
+	secret := &corev1.Secret{}
+	err = r.Get(ctx, types.NamespacedName{Name: targetName, Namespace: targetNS}, secret)
+	if errors.IsNotFound(err) {
+		secret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      targetName,
+				Namespace: targetNS,
+				Labels: map[string]string{
+					"auth.kettleofketchup/managed-by":  "authentik-operator",
+					"auth.kettleofketchup/oidc-client": oidcClient.Name,
+				},
+			},
+			Type: corev1.SecretTypeOpaque,
+			Data: toByteMap(secretData),
+		}
+		if err := r.Create(ctx, secret); err != nil {
+			logger.Error(err, "failed to create secret", "name", targetName, "namespace", targetNS)
+			meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
+				Type:               "SecretSynced",
+				Status:             metav1.ConditionFalse,
+				Reason:             "CreateFailed",
+				Message:            fmt.Sprintf("Failed to create secret: %v", err),
+				ObservedGeneration: oidcClient.Generation,
+			})
+			_ = r.Status().Update(ctx, oidcClient)
+			return ctrl.Result{RequeueAfter: requeueInterval}, nil
+		}
+	} else if err != nil {
+		logger.Error(err, "failed to get secret", "name", targetName, "namespace", targetNS)
+		return ctrl.Result{RequeueAfter: requeueInterval}, nil
+	} else {
+		secret.Data = toByteMap(secretData)
+		if secret.Labels == nil {
+			secret.Labels = make(map[string]string)
+		}
+		secret.Labels["auth.kettleofketchup/managed-by"] = "authentik-operator"
+		secret.Labels["auth.kettleofketchup/oidc-client"] = oidcClient.Name
+		if err := r.Update(ctx, secret); err != nil {
+			logger.Error(err, "failed to update secret", "name", targetName, "namespace", targetNS)
+			meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
+				Type:               "SecretSynced",
+				Status:             metav1.ConditionFalse,
+				Reason:             "UpdateFailed",
+				Message:            fmt.Sprintf("Failed to update secret: %v", err),
+				ObservedGeneration: oidcClient.Generation,
+			})
+			_ = r.Status().Update(ctx, oidcClient)
+			return ctrl.Result{RequeueAfter: requeueInterval}, nil
+		}
+	}
+
+	logger.Info("secret synced", "name", targetName, "namespace", targetNS)
+
+	// 6. Update status
+	now := metav1.Now()
+	oidcClient.Status.SecretHash = newHash
+	oidcClient.Status.LastSyncTime = &now
+	meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
+		Type:               "SecretSynced",
+		Status:             metav1.ConditionTrue,
+		Reason:             "Synced",
+		Message:            "Secret successfully synced",
+		ObservedGeneration: oidcClient.Generation,
+	})
+	if err := r.Status().Update(ctx, oidcClient); err != nil {
+		logger.Error(err, "failed to update status")
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{RequeueAfter: requeueInterval}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
+func toByteMap(data map[string]string) map[string][]byte {
+	result := make(map[string][]byte, len(data))
+	for k, v := range data {
+		result[k] = []byte(v)
+	}
+	return result
+}
+
+// SetupWithManager sets up the controller with the Manager
 func (r *OIDCClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&authv1alpha1.OIDCClient{}).
-		Named("oidcclient").
 		Complete(r)
 }

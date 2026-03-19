@@ -29,7 +29,7 @@ type Pagination struct {
 
 // ProviderListResponse is the paginated response from the providers endpoint
 type ProviderListResponse struct {
-	Pagination Pagination      `json:"pagination"`
+	Pagination Pagination       `json:"pagination"`
 	Results    []OAuth2Provider `json:"results"`
 }
 

@@ -58,7 +58,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push Docker image
         run: |
           TAG="ghcr.io/kettleofketchup/authentik-operator:${GITHUB_REF_NAME}"
           docker build -t $TAG -f Dockerfile .
@@ -68,3 +68,14 @@ jobs:
             docker tag $TAG $LATEST
             docker push $LATEST
           fi
+
+      - name: Set chart version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^version:.*/version: ${VERSION}/" chart/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" chart/Chart.yaml
+
+      - name: Package and push Helm chart
+        run: |
+          helm package chart/
+          helm push authentik-operator-*.tgz oci://ghcr.io/kettleofketchup

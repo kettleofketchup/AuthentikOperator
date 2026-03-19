@@ -65,3 +65,37 @@ func TestTriggerRollout_NotFound(t *testing.T) {
 		t.Fatal("expected error for missing deployment")
 	}
 }
+
+func TestTriggerRollout_StatefulSet(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = appsv1.AddToScheme(scheme)
+
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-sts", Namespace: "default"},
+		Spec: appsv1.StatefulSetSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
+			},
+		},
+	}
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sts).Build()
+	err := TriggerRollout(context.Background(), fakeClient, "StatefulSet", "test-sts", "default", "sha256:xyz")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	updated := &appsv1.StatefulSet{}
+	_ = fakeClient.Get(context.Background(), keyFor("test-sts", "default"), updated)
+	if updated.Spec.Template.Annotations["auth.kettleofketchup/secret-hash"] != "sha256:xyz" {
+		t.Error("expected hash annotation on statefulset")
+	}
+}
+
+func TestTriggerRollout_UnsupportedKind(t *testing.T) {
+	scheme := runtime.NewScheme()
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	err := TriggerRollout(context.Background(), fakeClient, "DaemonSet", "x", "default", "sha256:abc")
+	if err == nil {
+		t.Fatal("expected error for unsupported kind")
+	}
+}

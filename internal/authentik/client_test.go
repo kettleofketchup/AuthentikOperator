@@ -3,6 +3,7 @@ package authentik
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -87,7 +88,7 @@ func TestGetOAuth2ProviderBySlug_AppNotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing application")
 	}
-	if err != ErrProviderNotFound {
+	if !errors.Is(err, ErrProviderNotFound) {
 		t.Errorf("expected ErrProviderNotFound, got %v", err)
 	}
 }
@@ -108,7 +109,7 @@ func TestGetOAuth2ProviderBySlug_NoProviders(t *testing.T) {
 
 	c := NewClient(server.URL, "test-token")
 	_, err := c.GetOAuth2ProviderBySlug(context.Background(), "grafana")
-	if err != ErrProviderNotFound {
+	if !errors.Is(err, ErrProviderNotFound) {
 		t.Errorf("expected ErrProviderNotFound, got %v", err)
 	}
 }

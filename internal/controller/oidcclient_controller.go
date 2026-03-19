@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	authv1alpha1 "github.com/kettleofketchup/AuthentikOperator/api/v1alpha1"
@@ -20,6 +21,12 @@ import (
 	"github.com/kettleofketchup/AuthentikOperator/internal/hash"
 	"github.com/kettleofketchup/AuthentikOperator/internal/profiles"
 	"github.com/kettleofketchup/AuthentikOperator/internal/rollout"
+)
+
+const (
+	ConditionAuthentikProviderFound = "AuthentikProviderFound"
+	ConditionSecretSynced           = "SecretSynced"
+	ConditionRolloutTriggered       = "RolloutTriggered"
 )
 
 // OIDCClientReconciler reconciles an OIDCClient object
@@ -62,19 +69,21 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if err != nil {
 		logger.Error(err, "failed to fetch Authentik provider", "slug", slug)
 		meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
-			Type:               "AuthentikProviderFound",
+			Type:               ConditionAuthentikProviderFound,
 			Status:             metav1.ConditionFalse,
 			Reason:             "ProviderNotFound",
 			Message:            fmt.Sprintf("Failed to fetch provider for slug %q: %v", slug, err),
 			ObservedGeneration: oidcClient.Generation,
 		})
-		_ = r.Status().Update(ctx, oidcClient)
+		if statusErr := r.Status().Update(ctx, oidcClient); statusErr != nil {
+			logger.Error(statusErr, "failed to update status")
+		}
 		return ctrl.Result{RequeueAfter: requeueInterval}, nil
 	}
 
 	// Provider found
 	meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
-		Type:               "AuthentikProviderFound",
+		Type:               ConditionAuthentikProviderFound,
 		Status:             metav1.ConditionTrue,
 		Reason:             "Found",
 		Message:            fmt.Sprintf("Provider %q found for slug %q", provider.Name, slug),
@@ -113,13 +122,15 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err := r.Create(ctx, secret); err != nil {
 			logger.Error(err, "failed to create secret", "name", targetName, "namespace", targetNS)
 			meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
-				Type:               "SecretSynced",
+				Type:               ConditionSecretSynced,
 				Status:             metav1.ConditionFalse,
 				Reason:             "CreateFailed",
 				Message:            fmt.Sprintf("Failed to create secret: %v", err),
 				ObservedGeneration: oidcClient.Generation,
 			})
-			_ = r.Status().Update(ctx, oidcClient)
+			if statusErr := r.Status().Update(ctx, oidcClient); statusErr != nil {
+				logger.Error(statusErr, "failed to update status")
+			}
 			return ctrl.Result{RequeueAfter: requeueInterval}, nil
 		}
 	} else if err != nil {
@@ -135,13 +146,15 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err := r.Update(ctx, secret); err != nil {
 			logger.Error(err, "failed to update secret", "name", targetName, "namespace", targetNS)
 			meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
-				Type:               "SecretSynced",
+				Type:               ConditionSecretSynced,
 				Status:             metav1.ConditionFalse,
 				Reason:             "UpdateFailed",
 				Message:            fmt.Sprintf("Failed to update secret: %v", err),
 				ObservedGeneration: oidcClient.Generation,
 			})
-			_ = r.Status().Update(ctx, oidcClient)
+			if statusErr := r.Status().Update(ctx, oidcClient); statusErr != nil {
+				logger.Error(statusErr, "failed to update status")
+			}
 			return ctrl.Result{RequeueAfter: requeueInterval}, nil
 		}
 	}
@@ -158,7 +171,7 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			logger.Error(err, "failed to trigger rollout restart",
 				"kind", ref.Kind, "name", ref.Name, "namespace", ref.Namespace)
 			meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
-				Type:               "RolloutTriggered",
+				Type:               ConditionRolloutTriggered,
 				Status:             metav1.ConditionFalse,
 				Reason:             "RolloutFailed",
 				Message:            fmt.Sprintf("Failed to trigger rollout: %v", err),
@@ -166,7 +179,7 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			})
 		} else {
 			meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
-				Type:               "RolloutTriggered",
+				Type:               ConditionRolloutTriggered,
 				Status:             metav1.ConditionTrue,
 				Reason:             "Triggered",
 				Message:            fmt.Sprintf("Rollout triggered for %s/%s", ref.Kind, ref.Name),
@@ -180,7 +193,7 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	oidcClient.Status.SecretHash = newHash
 	oidcClient.Status.LastSyncTime = &now
 	meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
-		Type:               "SecretSynced",
+		Type:               ConditionSecretSynced,
 		Status:             metav1.ConditionTrue,
 		Reason:             "Synced",
 		Message:            "Secret successfully synced",
@@ -206,5 +219,6 @@ func toByteMap(data map[string]string) map[string][]byte {
 func (r *OIDCClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&authv1alpha1.OIDCClient{}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: 5}).
 		Complete(r)
 }

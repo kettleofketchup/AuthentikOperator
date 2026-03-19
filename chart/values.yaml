@@ -1,6 +1,7 @@
 image:
   repository: ghcr.io/kettleofketchup/authentik-operator
-  tag: latest
+  # Pin to a specific version tag for production; "latest" requires pullPolicy: Always
+  tag: ""
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -30,7 +31,8 @@ bootstrap:
 
 serviceAccount:
   create: true
-  name: authentik-operator
+  # Leave empty to auto-derive from release fullname
+  name: ""
   annotations: {}
 
 leaderElect: true

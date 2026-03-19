@@ -96,7 +96,7 @@ func main() {
 	flag.StringVar(&authentikTokenSecret, "authentik-token-secret", "authentik-operator-token", "Name of the secret containing the Authentik API token")
 	flag.DurationVar(&reconcileInterval, "reconcile-interval", 5*time.Minute, "Reconciliation interval")
 	opts := zap.Options{
-		Development: true,
+		Development: false,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
@@ -107,7 +107,7 @@ func main() {
 		fmt.Println("Running in bootstrap mode")
 		cfg := ctrl.GetConfigOrDie()
 		scheme := runtime.NewScheme()
-		corev1.AddToScheme(scheme)
+		utilruntime.Must(corev1.AddToScheme(scheme))
 
 		c, err := client.New(cfg, client.Options{Scheme: scheme})
 		if err != nil {
@@ -128,11 +128,16 @@ func main() {
 			Namespace:       namespace,
 		}
 
-		if err := bootstrap.Run(context.Background(), c, bsCfg); err != nil {
+		if err := bootstrap.Run(context.Background(), c, bsCfg, setupLog); err != nil {
 			setupLog.Error(err, "bootstrap failed")
 			os.Exit(1)
 		}
 		os.Exit(0)
+	}
+
+	if authentikURL == "" {
+		setupLog.Error(fmt.Errorf("--authentik-url is required"), "missing required flag")
+		os.Exit(1)
 	}
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled

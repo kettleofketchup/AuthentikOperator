@@ -33,7 +33,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: manager
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - --authentik-url={{ required "authentik.url is required" .Values.authentik.url }}

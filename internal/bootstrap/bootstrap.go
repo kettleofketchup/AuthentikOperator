@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,12 +28,12 @@ type Config struct {
 // 2. Create API token in Authentik using Bearer auth
 // 3. Retrieve the token key via view_key endpoint
 // 4. Write token to K8s Secret
-func Run(ctx context.Context, c client.Client, cfg Config) error {
+func Run(ctx context.Context, c client.Client, cfg Config, log logr.Logger) error {
 	// Check if secret already exists
 	existing := &corev1.Secret{}
 	err := c.Get(ctx, types.NamespacedName{Name: cfg.TokenSecretName, Namespace: cfg.Namespace}, existing)
 	if err == nil {
-		fmt.Println("Token secret already exists, skipping bootstrap")
+		log.Info("Token secret already exists, skipping bootstrap")
 		return nil
 	}
 	if !errors.IsNotFound(err) {
@@ -70,6 +71,6 @@ func Run(ctx context.Context, c client.Client, cfg Config) error {
 		return fmt.Errorf("creating token secret: %w", err)
 	}
 
-	fmt.Printf("Bootstrap complete: token secret %s/%s created\n", cfg.Namespace, cfg.TokenSecretName)
+	log.Info("Bootstrap complete", "secret", cfg.Namespace+"/"+cfg.TokenSecretName)
 	return nil
 }

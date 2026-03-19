@@ -37,6 +37,10 @@ go.work.sum
 # Node (if using any JS tooling)
 node_modules/
 
+# Environment files
+.env
+.env.*
+
 # Claude Code local settings
 .claude/settings.local.json
 

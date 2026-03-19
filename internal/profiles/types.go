@@ -1,5 +1,7 @@
 package profiles
 
+import "strings"
+
 // OIDCData holds the OIDC values derived from an Authentik provider
 type OIDCData struct {
 	ClientID     string
@@ -19,6 +21,7 @@ type OIDCData struct {
 //   - Userinfo:  {baseURL}/application/o/userinfo/
 //   - Issuer:    {baseURL}/application/o/{slug}/  (per-slug)
 func BuildOIDCData(baseURL, slug, clientID, clientSecret string) OIDCData {
+	baseURL = strings.TrimRight(baseURL, "/")
 	return OIDCData{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,

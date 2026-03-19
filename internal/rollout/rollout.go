@@ -22,12 +22,13 @@ func TriggerRollout(ctx context.Context, c client.Client, kind, name, namespace,
 		if err := c.Get(ctx, key, deploy); err != nil {
 			return fmt.Errorf("getting deployment %s/%s: %w", namespace, name, err)
 		}
+		patch := client.MergeFrom(deploy.DeepCopy())
 		if deploy.Spec.Template.Annotations == nil {
 			deploy.Spec.Template.Annotations = make(map[string]string)
 		}
 		deploy.Spec.Template.Annotations[annotationKey] = secretHash
-		if err := c.Update(ctx, deploy); err != nil {
-			return fmt.Errorf("updating deployment %s/%s: %w", namespace, name, err)
+		if err := c.Patch(ctx, deploy, patch); err != nil {
+			return fmt.Errorf("patching deployment %s/%s: %w", namespace, name, err)
 		}
 		return nil
 
@@ -36,12 +37,13 @@ func TriggerRollout(ctx context.Context, c client.Client, kind, name, namespace,
 		if err := c.Get(ctx, key, sts); err != nil {
 			return fmt.Errorf("getting statefulset %s/%s: %w", namespace, name, err)
 		}
+		patch := client.MergeFrom(sts.DeepCopy())
 		if sts.Spec.Template.Annotations == nil {
 			sts.Spec.Template.Annotations = make(map[string]string)
 		}
 		sts.Spec.Template.Annotations[annotationKey] = secretHash
-		if err := c.Update(ctx, sts); err != nil {
-			return fmt.Errorf("updating statefulset %s/%s: %w", namespace, name, err)
+		if err := c.Patch(ctx, sts, patch); err != nil {
+			return fmt.Errorf("patching statefulset %s/%s: %w", namespace, name, err)
 		}
 		return nil
 

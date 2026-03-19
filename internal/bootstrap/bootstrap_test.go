@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/kettleofketchup/AuthentikOperator/internal/authentik"
 )
@@ -53,13 +54,14 @@ func TestBootstrap(t *testing.T) {
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "operator-ns"}}
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ns).Build()
 
+	log := zap.New(zap.UseDevMode(true))
 	err := Run(context.Background(), fakeClient, Config{
 		AuthentikURL:    server.URL,
 		BootstrapToken:  "bootstrap-token-123",
 		TokenIdentifier: "authentik-operator",
 		TokenSecretName: "authentik-operator-token",
 		Namespace:       "operator-ns",
-	})
+	}, log)
 	if err != nil {
 		t.Fatalf("bootstrap failed: %v", err)
 	}
@@ -91,13 +93,14 @@ func TestBootstrap_SecretAlreadyExists(t *testing.T) {
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "operator-ns"}}
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ns, existingSecret).Build()
 
+	log := zap.New(zap.UseDevMode(true))
 	err := Run(context.Background(), fakeClient, Config{
 		AuthentikURL:    "http://unused",
 		BootstrapToken:  "unused",
 		TokenIdentifier: "authentik-operator",
 		TokenSecretName: "authentik-operator-token",
 		Namespace:       "operator-ns",
-	})
+	}, log)
 	if err != nil {
 		t.Fatalf("bootstrap should succeed (skip) when secret exists: %v", err)
 	}

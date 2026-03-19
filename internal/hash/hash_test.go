@@ -35,3 +35,14 @@ func TestComputeSecretHash_OrderIndependent(t *testing.T) {
 		t.Error("hash should be order-independent")
 	}
 }
+
+func TestComputeSecretHash_EmptyMap(t *testing.T) {
+	h1 := ComputeSecretHash(nil)
+	h2 := ComputeSecretHash(map[string]string{})
+	if h1 == "" || h2 == "" {
+		t.Error("hash of empty data should not be empty")
+	}
+	if h1 != h2 {
+		t.Error("nil map and empty map should produce same hash")
+	}
+}

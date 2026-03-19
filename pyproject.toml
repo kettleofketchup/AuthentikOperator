@@ -1,0 +1,13 @@
+[project]
+name = "AuthentikOperator"
+version = "0.1.0"
+description = "AuthentikOperator documentation"
+requires-python = ">=3.11"
+dependencies = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.22",
+    "mkdocs-awesome-nav>=3.2.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.4.7",
+    "mkdocs-include-markdown-plugin>=7.2.0",
+    "mkdocs-minify-plugin>=0.8.0",
+]

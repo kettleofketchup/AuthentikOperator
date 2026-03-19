@@ -1,0 +1,44 @@
+# Build stage
+FROM golang:1.23-bookworm AS builder
+
+WORKDIR /build
+
+# Copy go mod files first for caching
+COPY src/AuthentikOperator/go.mod src/AuthentikOperator/go.sum* ./src/AuthentikOperator/
+RUN cd src/AuthentikOperator && go mod download
+
+# Copy source code
+COPY src/AuthentikOperator/ ./src/AuthentikOperator/
+
+# Build arguments for version injection
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
+
+# Build the binary
+RUN cd src/AuthentikOperator && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags "-s -w \
+        -X gitlab.lan/AuthentikOperator/src/AuthentikOperator/version.Version=${VERSION} \
+        -X gitlab.lan/AuthentikOperator/src/AuthentikOperator/version.Commit=${COMMIT} \
+        -X gitlab.lan/AuthentikOperator/src/AuthentikOperator/version.BuildDate=${BUILD_DATE}" \
+    -o /AuthentikOperator .
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add custom certificates (if any)
+COPY docker/certificates/ /tmp/certs/
+RUN if ls /tmp/certs/*.pem 1>/dev/null 2>&1; then \
+        cp /tmp/certs/*.pem /usr/local/share/ca-certificates/ && \
+        update-ca-certificates; \
+    fi && rm -rf /tmp/certs
+
+# Copy binary from builder
+COPY --from=builder /AuthentikOperator /usr/local/bin/AuthentikOperator
+
+ENTRYPOINT ["AuthentikOperator"]

@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    tags: ['v*']
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          install-only: true
+
+      - name: Lint
+        run: just cicd::lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Test
+        run: just cicd::test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build
+        run: just cicd::build
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: AuthentikOperator
+          path: bin/
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [lint, test, build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        run: |
+          TAG="ghcr.io/kettleofketchup/AuthentikOperator/AuthentikOperator:${GITHUB_REF_NAME}"
+          just cicd::docker $TAG
+          docker push $TAG
+          if echo "${GITHUB_REF_NAME}" | grep -qE '^v[0-9]+\.[0-9]+'; then
+            LATEST="ghcr.io/kettleofketchup/AuthentikOperator/AuthentikOperator:latest"
+            docker tag $TAG $LATEST
+            docker push $LATEST
+          fi

@@ -1,0 +1,29 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "authentik-operator.fullname" . }}
+  labels:
+    {{- include "authentik-operator.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["auth.kettleofketchup"]
+    resources: ["oidcclients"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["auth.kettleofketchup"]
+    resources: ["oidcclients/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["auth.kettleofketchup"]
+    resources: ["oidcclients/finalizers"]
+    verbs: ["update"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "update", "patch"]
+  # Leader election (controller-runtime uses Leases)
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

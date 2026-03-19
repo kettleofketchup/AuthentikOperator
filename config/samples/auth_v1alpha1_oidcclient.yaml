@@ -1,0 +1,9 @@
+apiVersion: auth.kettleofketchup/v1alpha1
+kind: OIDCClient
+metadata:
+  labels:
+    app.kubernetes.io/name: authentikoperator
+    app.kubernetes.io/managed-by: kustomize
+  name: oidcclient-sample
+spec:
+  # TODO(user): Add fields here

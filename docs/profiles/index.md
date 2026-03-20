@@ -28,6 +28,7 @@ The operator retrieves and derives the following values from the Authentik API f
 | [`grafana`](grafana.md) | Grafana | Maps to Grafana's Generic OAuth environment variables |
 | [`openwebui`](openwebui.md) | OpenWebUI | Maps to OpenWebUI's OAuth environment variables |
 | [`argocd`](argocd.md) | ArgoCD | Produces keys for `argocd-secret` for Dex OIDC integration |
+| [`ragflow`](ragflow.md) | RagFlow | Produces OIDC values for `service_conf.yaml` configuration |
 | [`generic`](generic.md) | Any application | Uses plain OIDC variable names as secret keys |
 
 !!! tip "Fallback Behavior"

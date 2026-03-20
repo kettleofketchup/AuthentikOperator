@@ -101,6 +101,29 @@ func TestArgoCDProfile(t *testing.T) {
 	}
 }
 
+func TestRagFlowProfile(t *testing.T) {
+	data := newTestData()
+	result := Apply("ragflow", data, nil)
+
+	checks := map[string]string{
+		"client_id":         "test-client-id",
+		"client_secret":     "test-client-secret",
+		"issuer":            "https://auth.example.com/application/o/test-app/",
+		"scope":             "openid email profile",
+		"redirect_uri_path": "/v1/user/oauth/callback/authentik",
+	}
+
+	for key, expected := range checks {
+		if result[key] != expected {
+			t.Errorf("ragflow profile: key %s = %q, want %q", key, result[key], expected)
+		}
+	}
+
+	if len(result) != len(checks) {
+		t.Errorf("ragflow profile: expected %d keys, got %d", len(checks), len(result))
+	}
+}
+
 func TestGenericProfile(t *testing.T) {
 	data := newTestData()
 	result := Apply("generic", data, nil)

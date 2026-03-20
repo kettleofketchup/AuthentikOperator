@@ -115,6 +115,7 @@ spec:
                 - grafana
                 - openwebui
                 - argocd
+                - ragflow
                 - generic
                 type: string
               target:

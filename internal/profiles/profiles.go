@@ -14,6 +14,8 @@ func Apply(profileName string, data OIDCData, overrides map[string]string) map[s
 		result = openwebui(data)
 	case "argocd":
 		result = argocd(data)
+	case "ragflow":
+		result = ragflow(data)
 	default:
 		result = generic(data)
 	}
@@ -72,6 +74,29 @@ func argocd(data OIDCData) map[string]string {
 		"dex.authentik.clientSecret": data.ClientSecret,
 		"clientId":                   data.ClientID,
 		"issuerUrl":                  data.IssuerURL,
+	}
+}
+
+// ragflow produces keys for RagFlow's service_conf.yaml OIDC configuration.
+// RagFlow uses a YAML config file (not env vars) for OAuth. These secret keys
+// provide the values to reference when building the oauth section of service_conf.yaml:
+//
+//	oauth:
+//	  authentik:
+//	    type: "oidc"
+//	    display_name: "Authentik SSO"
+//	    client_id: <from client_id key>
+//	    client_secret: <from client_secret key>
+//	    issuer: <from issuer key>
+//	    scope: <from scope key>
+//	    redirect_uri: "https://ragflow.example.com<redirect_uri_path>"
+func ragflow(data OIDCData) map[string]string {
+	return map[string]string{
+		"client_id":         data.ClientID,
+		"client_secret":     data.ClientSecret,
+		"issuer":            data.IssuerURL,
+		"scope":             data.Scopes,
+		"redirect_uri_path": "/v1/user/oauth/callback/authentik",
 	}
 }
 

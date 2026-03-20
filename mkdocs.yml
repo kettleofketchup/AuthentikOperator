@@ -18,6 +18,7 @@ nav:
     - Grafana: profiles/grafana.md
     - OpenWebUI: profiles/openwebui.md
     - ArgoCD: profiles/argocd.md
+    - RagFlow: profiles/ragflow.md
     - Generic: profiles/generic.md
   - Reference:
     - OIDCClient CRD: reference/crd.md

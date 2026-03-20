@@ -74,7 +74,7 @@ type OIDCClientSpec struct {
 	Target SecretTarget `json:"target"`
 
 	// SecretProfile selects a built-in key mapping profile
-	// +kubebuilder:validation:Enum=grafana;openwebui;argocd;generic
+	// +kubebuilder:validation:Enum=grafana;openwebui;argocd;ragflow;generic
 	// +kubebuilder:default=generic
 	SecretProfile string `json:"secretProfile"`
 

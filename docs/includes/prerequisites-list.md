@@ -1,0 +1,4 @@
+- Kubernetes 1.28+ (K3s, EKS, GKE, AKS, etc.)
+- Helm 3.12+
+- A running [Authentik](https://goauthentik.io/) instance with OIDC providers configured
+- `AUTHENTIK_BOOTSTRAP_TOKEN` set on the Authentik instance (for initial token bootstrap)

@@ -2,6 +2,30 @@ site_name: AuthentikOperator Documentation
 site_description: Documentation for AuthentikOperator
 site_dir: public
 
+nav:
+  - Home: index.md
+  - Getting Started:
+    - getting-started/index.md
+    - Prerequisites: getting-started/prerequisites.md
+    - Quick Start: getting-started/quickstart.md
+  - User Guide:
+    - Installation: guide/installation.md
+    - Configuration: guide/configuration.md
+    - Bootstrap Setup: guide/bootstrap.md
+    - Creating OIDCClients: guide/creating-oidc-clients.md
+  - Secret Profiles:
+    - profiles/index.md
+    - Grafana: profiles/grafana.md
+    - OpenWebUI: profiles/openwebui.md
+    - ArgoCD: profiles/argocd.md
+    - Generic: profiles/generic.md
+  - Reference:
+    - OIDCClient CRD: reference/crd.md
+    - Helm Values: reference/helm-values.md
+    - Architecture: reference/architecture.md
+  - Development:
+    - Contributing: development/contributing.md
+
 theme:
   name: material
   palette:
@@ -31,7 +55,6 @@ theme:
 plugins:
   - search:
       lang: en
-  - awesome-nav
   - include-markdown:
       preserve_includer_indent: true
       dedent: false

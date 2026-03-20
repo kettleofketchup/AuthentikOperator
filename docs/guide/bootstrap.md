@@ -201,6 +201,102 @@ To force a fresh bootstrap (e.g. after rotating the Authentik bootstrap token):
           --namespace authentik-operator
         ```
 
+### Synchronizing the bootstrap token across namespaces
+
+If your Authentik instance and the operator run in different namespaces, you need the same bootstrap token value in both places. Instead of creating the secret manually in the operator namespace, use a **secret reflector** to automatically mirror it.
+
+#### Using Ember Stack Reflector
+
+[Reflector](https://github.com/emberstack/kubernetes-reflector) watches secrets with specific annotations and mirrors them to other namespaces.
+
+**1. Install Reflector:**
+
+```bash
+helm install reflector emberstack/reflector --namespace kube-system
+```
+
+**2. Annotate the source secret in the Authentik namespace:**
+
+```yaml title="authentik-bootstrap-secret.yaml"
+apiVersion: v1
+kind: Secret
+metadata:
+  name: authentik-bootstrap
+  namespace: authentik
+  annotations:
+    reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+    reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "authentik-operator"
+    reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
+    reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: "authentik-operator"
+type: Opaque
+stringData:
+  bootstrap_token: "my-secure-bootstrap-token"
+```
+
+```bash
+kubectl apply -f authentik-bootstrap-secret.yaml
+```
+
+Reflector will automatically create and maintain a copy of this secret in the `authentik-operator` namespace. When the source secret changes, the reflected copy updates automatically.
+
+!!! tip "Single source of truth"
+    With this approach, you only manage the bootstrap token in one place (the `authentik` namespace).
+    The reflected copy stays in sync automatically — no manual duplication required.
+
+#### Using Mittwald Kubernetes Replicator
+
+[kubernetes-replicator](https://github.com/mittwald/kubernetes-replicator) is an alternative that uses a similar annotation pattern:
+
+```yaml title="authentik-bootstrap-secret.yaml"
+apiVersion: v1
+kind: Secret
+metadata:
+  name: authentik-bootstrap
+  namespace: authentik
+  annotations:
+    replicator.v1.mittwald.de/replicate-to: "authentik-operator"
+type: Opaque
+stringData:
+  bootstrap_token: "my-secure-bootstrap-token"
+```
+
+#### Using Reflector in an ArgoCD / GitOps workflow
+
+If you manage secrets declaratively via Sealed Secrets or External Secrets Operator, annotate the
+generated secret resource. For example, with External Secrets:
+
+```yaml title="external-secret.yaml"
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: authentik-bootstrap
+  namespace: authentik
+spec:
+  target:
+    template:
+      metadata:
+        annotations:
+          reflector.v1.k8s.emberstack.com/reflection-allowed: "true"
+          reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces: "authentik-operator"
+          reflector.v1.k8s.emberstack.com/reflection-auto-enabled: "true"
+          reflector.v1.k8s.emberstack.com/reflection-auto-namespaces: "authentik-operator"
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  data:
+    - secretKey: bootstrap_token
+      remoteRef:
+        key: authentik/bootstrap
+        property: token
+```
+
+!!! warning "Namespace must exist first"
+    The target namespace (`authentik-operator`) must exist before the reflector can mirror
+    the secret into it. Create the namespace before installing the operator chart, or use
+    `--create-namespace` on the Helm install.
+
+---
+
 ### Disabling bootstrap entirely
 
 If you prefer to create the API token manually:

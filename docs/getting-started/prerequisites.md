@@ -47,6 +47,9 @@ kubectl create secret generic authentik-bootstrap \
 !!! note
     The secret name (`authentik-bootstrap`) and key (`bootstrap_token`) must match the Helm values `authentik.bootstrapSecretRef` and `authentik.bootstrapSecretKey`. These are the defaults -- only change them if you override those values.
 
+!!! tip "Avoid manual duplication"
+    If the bootstrap token already exists in the Authentik namespace, use a **secret reflector** to automatically mirror it to the operator namespace instead of creating it twice. See [Synchronizing the bootstrap token across namespaces](../guide/bootstrap.md#synchronizing-the-bootstrap-token-across-namespaces) for setup with Ember Stack Reflector or Mittwald Kubernetes Replicator.
+
 ---
 
 ## Creating Authentik OIDC Applications

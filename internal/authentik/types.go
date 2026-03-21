@@ -22,9 +22,9 @@ type OAuth2Provider struct {
 
 // Pagination holds Authentik API pagination metadata
 type Pagination struct {
-	Count      int     `json:"count"`
-	Next       *string `json:"next"`
-	TotalPages int     `json:"total_pages"`
+	Count      int  `json:"count"`
+	Next       *int `json:"next"`
+	TotalPages int  `json:"total_pages"`
 }
 
 // ProviderListResponse is the paginated response from the providers endpoint

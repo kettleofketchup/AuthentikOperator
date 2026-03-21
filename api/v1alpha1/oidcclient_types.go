@@ -52,6 +52,27 @@ type RolloutTargetRef struct {
 	Namespace string `json:"namespace"`
 }
 
+// ConfigMapTarget defines a ConfigMap key to patch with profile-generated content.
+// The profile must produce a key matching SourceKey (e.g. "service_conf_yaml" for ragflow).
+// The operator patches the ConfigMap's DataKey with the value from that profile key.
+type ConfigMapTarget struct {
+	// Namespace of the ConfigMap
+	// +kubebuilder:validation:Required
+	Namespace string `json:"namespace"`
+
+	// Name of the ConfigMap to patch
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+
+	// DataKey is the key inside the ConfigMap's data to write to
+	// +kubebuilder:validation:Required
+	DataKey string `json:"dataKey"`
+
+	// SourceKey is the profile-generated secret key to read the value from
+	// +kubebuilder:validation:Required
+	SourceKey string `json:"sourceKey"`
+}
+
 // RolloutRestart configures automatic workload restart on secret changes
 type RolloutRestart struct {
 	// Enabled controls whether rollout restart is active
@@ -81,6 +102,10 @@ type OIDCClientSpec struct {
 	// SecretOverrides adds or overrides keys in the generated secret
 	// +optional
 	SecretOverrides map[string]string `json:"secretOverrides,omitempty"`
+
+	// ConfigMapTarget patches a ConfigMap with a profile-generated value
+	// +optional
+	ConfigMapTarget *ConfigMapTarget `json:"configMapTarget,omitempty"`
 
 	// RolloutRestart configures automatic workload restart on secret changes
 	// +optional

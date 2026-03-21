@@ -71,6 +71,30 @@ spec:
                 required:
                 - applicationSlug
                 type: object
+              configMapTarget:
+                description: ConfigMapTarget patches a ConfigMap with a profile-generated
+                  value
+                properties:
+                  dataKey:
+                    description: DataKey is the key inside the ConfigMap's data to
+                      write to
+                    type: string
+                  name:
+                    description: Name of the ConfigMap to patch
+                    type: string
+                  namespace:
+                    description: Namespace of the ConfigMap
+                    type: string
+                  sourceKey:
+                    description: SourceKey is the profile-generated secret key to
+                      read the value from
+                    type: string
+                required:
+                - dataKey
+                - name
+                - namespace
+                - sourceKey
+                type: object
               rolloutRestart:
                 description: RolloutRestart configures automatic workload restart
                   on secret changes

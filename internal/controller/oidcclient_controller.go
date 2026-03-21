@@ -42,6 +42,7 @@ type OIDCClientReconciler struct {
 // +kubebuilder:rbac:groups=auth.kettleofketchup,resources=oidcclients/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=auth.kettleofketchup,resources=oidcclients/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments;statefulsets,verbs=get;update;patch
 // +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch;create;update;patch;delete
@@ -161,7 +162,53 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	logger.Info("secret synced", "name", targetName, "namespace", targetNS)
 
-	// 6. Trigger rollout restart if enabled and secret changed
+	// 6. Patch ConfigMap if configured
+	if oidcClient.Spec.ConfigMapTarget != nil {
+		cmt := oidcClient.Spec.ConfigMapTarget
+		sourceValue, ok := secretData[cmt.SourceKey]
+		if !ok {
+			logger.Error(fmt.Errorf("source key %q not found in profile output", cmt.SourceKey), "configmap patch skipped")
+		} else {
+			cm := &corev1.ConfigMap{}
+			cmKey := types.NamespacedName{Name: cmt.Name, Namespace: cmt.Namespace}
+			if err := r.Get(ctx, cmKey, cm); err != nil {
+				logger.Error(err, "failed to get configmap", "name", cmt.Name, "namespace", cmt.Namespace)
+				meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
+					Type:               "ConfigMapSynced",
+					Status:             metav1.ConditionFalse,
+					Reason:             "GetFailed",
+					Message:            fmt.Sprintf("Failed to get ConfigMap %s/%s: %v", cmt.Namespace, cmt.Name, err),
+					ObservedGeneration: oidcClient.Generation,
+				})
+			} else {
+				if cm.Data == nil {
+					cm.Data = make(map[string]string)
+				}
+				cm.Data[cmt.DataKey] = sourceValue
+				if err := r.Update(ctx, cm); err != nil {
+					logger.Error(err, "failed to patch configmap", "name", cmt.Name, "namespace", cmt.Namespace)
+					meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
+						Type:               "ConfigMapSynced",
+						Status:             metav1.ConditionFalse,
+						Reason:             "UpdateFailed",
+						Message:            fmt.Sprintf("Failed to update ConfigMap: %v", err),
+						ObservedGeneration: oidcClient.Generation,
+					})
+				} else {
+					logger.Info("configmap patched", "name", cmt.Name, "namespace", cmt.Namespace, "key", cmt.DataKey)
+					meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
+						Type:               "ConfigMapSynced",
+						Status:             metav1.ConditionTrue,
+						Reason:             "Synced",
+						Message:            fmt.Sprintf("ConfigMap %s/%s key %q synced", cmt.Namespace, cmt.Name, cmt.DataKey),
+						ObservedGeneration: oidcClient.Generation,
+					})
+				}
+			}
+		}
+	}
+
+	// 7. Trigger rollout restart if enabled and secret changed
 	if oidcClient.Spec.RolloutRestart != nil &&
 		oidcClient.Spec.RolloutRestart.Enabled &&
 		oidcClient.Spec.RolloutRestart.TargetRef != nil {

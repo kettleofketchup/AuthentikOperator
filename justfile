@@ -14,6 +14,7 @@ mod certs 'just/certs.just'
 mod testing 'just/testing.just'
 mod cicd 'just/cicd.just'
 mod copier 'just/copier.just'
+mod chart 'just/chart.just'
 
 # Import top-level recipes (merged into root namespace)
 import 'just/dev.just'

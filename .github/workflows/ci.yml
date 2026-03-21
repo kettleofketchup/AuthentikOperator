@@ -58,24 +58,62 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract version from Chart.yaml
+        id: version
+        run: |
+          VERSION=$(grep '^appVersion:' chart/Chart.yaml | awk '{print $2}' | tr -d '"')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Docker image version: ${VERSION}"
+
       - name: Build and push Docker image
         run: |
-          TAG="ghcr.io/kettleofketchup/authentik-operator:${GITHUB_REF_NAME}"
+          TAG="ghcr.io/kettleofketchup/authentik-operator:${{ steps.version.outputs.version }}"
+          VTAG="ghcr.io/kettleofketchup/authentik-operator:v${{ steps.version.outputs.version }}"
+          LATEST="ghcr.io/kettleofketchup/authentik-operator:latest"
           docker build -t $TAG -f Dockerfile .
+          docker tag $TAG $VTAG
+          docker tag $TAG $LATEST
           docker push $TAG
-          if echo "${GITHUB_REF_NAME}" | grep -qE '^v[0-9]+\.[0-9]+'; then
-            LATEST="ghcr.io/kettleofketchup/authentik-operator:latest"
-            docker tag $TAG $LATEST
-            docker push $LATEST
-          fi
+          docker push $VTAG
+          docker push $LATEST
 
-      - name: Set chart version from tag
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          sed -i "s/^version:.*/version: ${VERSION}/" chart/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" chart/Chart.yaml
+  helm:
+    runs-on: ubuntu-latest
+    needs: [test, build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Package and push Helm chart
         run: |
           helm package chart/
           helm push authentik-operator-*.tgz oci://ghcr.io/kettleofketchup
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [docker, helm]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package Helm chart for release
+        run: helm package chart/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: authentik-operator-*.tgz

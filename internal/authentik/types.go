@@ -1,5 +1,7 @@
 package authentik
 
+import "encoding/json"
+
 // ApplicationResponse represents an Authentik application looked up by slug.
 // PK is a UUID string in Authentik (not an integer).
 type ApplicationResponse struct {
@@ -10,14 +12,14 @@ type ApplicationResponse struct {
 
 // OAuth2Provider represents an Authentik OAuth2/OIDC provider
 type OAuth2Provider struct {
-	PK                      int    `json:"pk"`
-	Name                    string `json:"name"`
-	ClientID                string `json:"client_id"`
-	ClientSecret            string `json:"client_secret"`
-	ClientType              string `json:"client_type"`
-	AssignedApplicationSlug string `json:"assigned_application_slug"`
-	AssignedApplicationName string `json:"assigned_application_name"`
-	RedirectURIs            string `json:"redirect_uris"`
+	PK                      int             `json:"pk"`
+	Name                    string          `json:"name"`
+	ClientID                string          `json:"client_id"`
+	ClientSecret            string          `json:"client_secret"`
+	ClientType              string          `json:"client_type"`
+	AssignedApplicationSlug string          `json:"assigned_application_slug"`
+	AssignedApplicationName string          `json:"assigned_application_name"`
+	RedirectURIs            json.RawMessage `json:"redirect_uris"`
 }
 
 // Pagination holds Authentik API pagination metadata

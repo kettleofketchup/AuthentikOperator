@@ -103,14 +103,17 @@ func TestArgoCDProfile(t *testing.T) {
 
 func TestRagFlowProfile(t *testing.T) {
 	data := newTestData()
-	result := Apply("ragflow", data, nil)
+	overrides := map[string]string{
+		"redirect_uri": "https://ragflow.example.com/v1/user/oauth/callback/oidc",
+	}
+	result := Apply("ragflow", data, overrides)
 
+	// Check individual keys
 	checks := map[string]string{
-		"client_id":         "test-client-id",
-		"client_secret":     "test-client-secret",
-		"issuer":            "https://auth.example.com/application/o/test-app/",
-		"scope":             "openid email profile",
-		"redirect_uri_path": "/v1/user/oauth/callback/authentik",
+		"client_id":     "test-client-id",
+		"client_secret": "test-client-secret",
+		"issuer":        "https://auth.example.com/application/o/test-app/",
+		"scope":         "openid email profile",
 	}
 
 	for key, expected := range checks {
@@ -119,9 +122,34 @@ func TestRagFlowProfile(t *testing.T) {
 		}
 	}
 
-	if len(result) != len(checks) {
-		t.Errorf("ragflow profile: expected %d keys, got %d", len(checks), len(result))
+	// Check service_conf_yaml contains key values
+	yaml := result["service_conf_yaml"]
+	if yaml == "" {
+		t.Fatal("ragflow profile: service_conf_yaml is empty")
 	}
+	for _, needle := range []string{"client_id: \"test-client-id\"", "client_secret: \"test-client-secret\"", "redirect_uri: \"https://ragflow.example.com"} {
+		if !contains(yaml, needle) {
+			t.Errorf("ragflow profile: service_conf_yaml missing %q", needle)
+		}
+	}
+
+	// redirect_uri should NOT leak into the secret as a separate key
+	if _, ok := result["redirect_uri"]; ok {
+		t.Error("ragflow profile: redirect_uri should be removed from secret keys")
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstr(s, substr))
+}
+
+func containsSubstr(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 func TestGenericProfile(t *testing.T) {

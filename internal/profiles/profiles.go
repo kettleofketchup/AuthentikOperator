@@ -15,12 +15,14 @@ func Apply(profileName string, data OIDCData, overrides map[string]string) map[s
 	case "argocd":
 		result = argocd(data)
 	case "ragflow":
-		result = ragflow(data)
+		result = ragflow(data, overrides)
 	default:
 		result = generic(data)
 	}
 
 	maps.Copy(result, overrides)
+	// Remove internal-only keys that shouldn't appear in the secret
+	delete(result, "redirect_uri")
 
 	return result
 }
@@ -77,26 +79,34 @@ func argocd(data OIDCData) map[string]string {
 	}
 }
 
-// ragflow produces keys for RagFlow's service_conf.yaml OIDC configuration.
-// RagFlow uses a YAML config file (not env vars) for OAuth. These secret keys
-// provide the values to reference when building the oauth section of service_conf.yaml:
+// ragflow produces keys for RAGFlow's service_conf.yaml OIDC configuration.
+// RAGFlow uses a YAML config file (not env vars) for OAuth.
 //
-//	oauth:
-//	  authentik:
-//	    type: "oidc"
-//	    display_name: "Authentik SSO"
-//	    client_id: <from client_id key>
-//	    client_secret: <from client_secret key>
-//	    issuer: <from issuer key>
-//	    scope: <from scope key>
-//	    redirect_uri: "https://ragflow.example.com<redirect_uri_path>"
-func ragflow(data OIDCData) map[string]string {
+// The "service_conf_yaml" key contains the complete OIDC block ready to be
+// patched into the ragflow-service-config ConfigMap's "local.service_conf.yaml" key.
+//
+// The OIDCClient CR must provide "redirect_uri" via SecretOverrides since the
+// operator doesn't know the RAGFlow external hostname.
+func ragflow(data OIDCData, overrides map[string]string) map[string]string {
+	redirectURI := overrides["redirect_uri"]
+
+	serviceConfYAML := "oauth:\n" +
+		"  oidc:\n" +
+		"    type: oidc\n" +
+		"    icon: sso\n" +
+		"    display_name: \"Login with Authentik\"\n" +
+		"    client_id: \"" + data.ClientID + "\"\n" +
+		"    client_secret: \"" + data.ClientSecret + "\"\n" +
+		"    issuer: \"" + data.IssuerURL + "\"\n" +
+		"    scope: \"" + data.Scopes + "\"\n" +
+		"    redirect_uri: \"" + redirectURI + "\"\n"
+
 	return map[string]string{
 		"client_id":         data.ClientID,
 		"client_secret":     data.ClientSecret,
 		"issuer":            data.IssuerURL,
 		"scope":             data.Scopes,
-		"redirect_uri_path": "/v1/user/oauth/callback/authentik",
+		"service_conf_yaml": serviceConfYAML,
 	}
 }
 

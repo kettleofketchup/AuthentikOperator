@@ -152,6 +152,27 @@ func containsSubstr(s, substr string) bool {
 	return false
 }
 
+func TestHarborProfile(t *testing.T) {
+	data := newTestData()
+	result := Apply("harbor", data, nil)
+
+	checks := map[string]string{
+		"client_id":     "test-client-id",
+		"client_secret": "test-client-secret",
+		"issuer":        "https://auth.example.com/application/o/test-app/",
+		"scopes":        "openid email profile",
+		"authorize_url": "https://auth.example.com/application/o/authorize/",
+		"token_url":     "https://auth.example.com/application/o/token/",
+		"userinfo_url":  "https://auth.example.com/application/o/userinfo/",
+	}
+
+	for key, expected := range checks {
+		if result[key] != expected {
+			t.Errorf("harbor profile: key %s = %q, want %q", key, result[key], expected)
+		}
+	}
+}
+
 func TestGenericProfile(t *testing.T) {
 	data := newTestData()
 	result := Apply("generic", data, nil)

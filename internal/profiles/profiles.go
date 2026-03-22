@@ -16,6 +16,8 @@ func Apply(profileName string, data OIDCData, overrides map[string]string) map[s
 		result = argocd(data)
 	case "ragflow":
 		result = ragflow(data, overrides)
+	case "harbor":
+		result = harbor(data)
 	default:
 		result = generic(data)
 	}
@@ -107,6 +109,21 @@ func ragflow(data OIDCData, overrides map[string]string) map[string]string {
 		"issuer":            data.IssuerURL,
 		"scope":             data.Scopes,
 		"service_conf_yaml": serviceConfYAML,
+	}
+}
+
+// harbor produces keys for Harbor's OIDC configuration.
+// The PostSync Job reads these from the harbor-oidc secret and configures
+// Harbor via its API (/api/v2.0/configurations).
+func harbor(data OIDCData) map[string]string {
+	return map[string]string{
+		"client_id":     data.ClientID,
+		"client_secret": data.ClientSecret,
+		"issuer":        data.IssuerURL,
+		"scopes":        data.Scopes,
+		"authorize_url": data.AuthorizeURL,
+		"token_url":     data.TokenURL,
+		"userinfo_url":  data.UserinfoURL,
 	}
 }
 

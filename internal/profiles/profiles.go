@@ -31,16 +31,16 @@ func Apply(profileName string, data OIDCData, overrides map[string]string) map[s
 
 func grafana(data OIDCData) map[string]string {
 	return map[string]string{
-		"GF_AUTH_GENERIC_OAUTH_ENABLED":       "true",
-		"GF_AUTH_GENERIC_OAUTH_NAME":          "authentik",
-		"GF_AUTH_GENERIC_OAUTH_CLIENT_ID":     data.ClientID,
-		"GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET": data.ClientSecret,
-		"GF_AUTH_GENERIC_OAUTH_AUTH_URL":      data.AuthorizeURL,
-		"GF_AUTH_GENERIC_OAUTH_TOKEN_URL":     data.TokenURL,
-		"GF_AUTH_GENERIC_OAUTH_API_URL":       data.UserinfoURL,
-		"GF_AUTH_GENERIC_OAUTH_SCOPES":        data.Scopes,
-		"GF_AUTH_SIGNOUT_REDIRECT_URL":        data.LogoutURL,
-		"GF_AUTH_OAUTH_AUTO_LOGIN":            "true",
+		"GF_AUTH_GENERIC_OAUTH_ENABLED":                    "true",
+		"GF_AUTH_GENERIC_OAUTH_NAME":                       "authentik",
+		"GF_AUTH_GENERIC_OAUTH_CLIENT_ID":                  data.ClientID,
+		"GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET":              data.ClientSecret,
+		"GF_AUTH_GENERIC_OAUTH_AUTH_URL":                   data.AuthorizeURL,
+		"GF_AUTH_GENERIC_OAUTH_TOKEN_URL":                  data.TokenURL,
+		"GF_AUTH_GENERIC_OAUTH_API_URL":                    data.UserinfoURL,
+		"GF_AUTH_GENERIC_OAUTH_SCOPES":                     data.Scopes,
+		"GF_AUTH_SIGNOUT_REDIRECT_URL":                     data.LogoutURL,
+		"GF_AUTH_OAUTH_AUTO_LOGIN":                         "true",
 		"GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN": "true",
 	}
 }

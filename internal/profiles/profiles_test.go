@@ -12,6 +12,7 @@ func newTestData() OIDCData {
 		TokenURL:     "https://auth.example.com/application/o/token/",
 		UserinfoURL:  "https://auth.example.com/application/o/userinfo/",
 		IssuerURL:    "https://auth.example.com/application/o/test-app/",
+		LogoutURL:    "https://auth.example.com/application/o/test-app/end-session/",
 		Scopes:       "openid email profile",
 	}
 }
@@ -34,6 +35,10 @@ func TestBuildOIDCData(t *testing.T) {
 	if data.IssuerURL != "https://auth.example.com/application/o/test-app/" {
 		t.Errorf("issuer URL should be per-slug, got %s", data.IssuerURL)
 	}
+	// Logout URL is per-slug
+	if data.LogoutURL != "https://auth.example.com/application/o/test-app/end-session/" {
+		t.Errorf("logout URL should be per-slug end-session, got %s", data.LogoutURL)
+	}
 }
 
 func TestGrafanaProfile(t *testing.T) {
@@ -49,6 +54,9 @@ func TestGrafanaProfile(t *testing.T) {
 		"GF_AUTH_GENERIC_OAUTH_TOKEN_URL":     "https://auth.example.com/application/o/token/",
 		"GF_AUTH_GENERIC_OAUTH_API_URL":       "https://auth.example.com/application/o/userinfo/",
 		"GF_AUTH_GENERIC_OAUTH_SCOPES":        "openid email profile",
+		"GF_AUTH_SIGNOUT_REDIRECT_URL":        "https://auth.example.com/application/o/test-app/end-session/",
+		"GF_AUTH_OAUTH_AUTO_LOGIN":            "true",
+		"GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN": "true",
 	}
 
 	for key, expected := range checks {

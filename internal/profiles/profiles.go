@@ -39,6 +39,9 @@ func grafana(data OIDCData) map[string]string {
 		"GF_AUTH_GENERIC_OAUTH_TOKEN_URL":     data.TokenURL,
 		"GF_AUTH_GENERIC_OAUTH_API_URL":       data.UserinfoURL,
 		"GF_AUTH_GENERIC_OAUTH_SCOPES":        data.Scopes,
+		"GF_AUTH_SIGNOUT_REDIRECT_URL":        data.LogoutURL,
+		"GF_AUTH_OAUTH_AUTO_LOGIN":            "true",
+		"GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN": "true",
 	}
 }
 

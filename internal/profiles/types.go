@@ -10,6 +10,7 @@ type OIDCData struct {
 	TokenURL     string
 	UserinfoURL  string
 	IssuerURL    string
+	LogoutURL    string
 	Scopes       string
 }
 
@@ -20,6 +21,7 @@ type OIDCData struct {
 //   - Token:     {baseURL}/application/o/token/
 //   - Userinfo:  {baseURL}/application/o/userinfo/
 //   - Issuer:    {baseURL}/application/o/{slug}/  (per-slug)
+//   - Logout:    {baseURL}/application/o/{slug}/end-session/  (per-slug)
 func BuildOIDCData(baseURL, slug, clientID, clientSecret string) OIDCData {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return OIDCData{
@@ -29,6 +31,7 @@ func BuildOIDCData(baseURL, slug, clientID, clientSecret string) OIDCData {
 		TokenURL:     baseURL + "/application/o/token/",
 		UserinfoURL:  baseURL + "/application/o/userinfo/",
 		IssuerURL:    baseURL + "/application/o/" + slug + "/",
+		LogoutURL:    baseURL + "/application/o/" + slug + "/end-session/",
 		Scopes:       "openid email profile",
 	}
 }

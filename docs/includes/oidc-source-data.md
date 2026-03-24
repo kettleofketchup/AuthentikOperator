@@ -6,4 +6,5 @@
 | `tokenUrl` | `{baseURL}/application/o/token/` (global) |
 | `userinfoUrl` | `{baseURL}/application/o/userinfo/` (global) |
 | `issuerUrl` | `{baseURL}/application/o/{slug}/` (per-app) |
+| `logoutUrl` | `{baseURL}/application/o/{slug}/end-session/` (per-app) |
 | `scopes` | `openid email profile` (default) |

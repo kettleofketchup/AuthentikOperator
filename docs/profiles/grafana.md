@@ -18,6 +18,9 @@ The `grafana` profile maps OIDC source data to Grafana's [Generic OAuth](https:/
 | `GF_AUTH_GENERIC_OAUTH_TOKEN_URL` | `tokenUrl` |
 | `GF_AUTH_GENERIC_OAUTH_API_URL` | `userinfoUrl` |
 | `GF_AUTH_GENERIC_OAUTH_SCOPES` | `scopes` (default: `openid email profile`) |
+| `GF_AUTH_SIGNOUT_REDIRECT_URL` | `logoutUrl` — Authentik end-session endpoint |
+| `GF_AUTH_OAUTH_AUTO_LOGIN` | `"true"` (static) — skip Grafana login form |
+| `GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN` | `"true"` (static) — Admin role grants Server Admin |
 
 ## Example CR
 

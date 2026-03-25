@@ -95,11 +95,13 @@ type OIDCClientSpec struct {
 	Target SecretTarget `json:"target"`
 
 	// SecretProfile selects a built-in key mapping profile
-	// +kubebuilder:validation:Enum=grafana;openwebui;argocd;ragflow;generic
+	// +kubebuilder:validation:Enum=grafana;openwebui;argocd;ragflow;harbor;generic
 	// +kubebuilder:default=generic
 	SecretProfile string `json:"secretProfile"`
 
-	// SecretOverrides adds or overrides keys in the generated secret
+	// SecretOverrides adds or overrides keys in the generated secret.
+	// Values may contain Go template placeholders resolved against OIDCData
+	// (e.g. "{{.ClientID}}", "{{.ClientSecret}}", "{{.IssuerURL}}").
 	// +optional
 	SecretOverrides map[string]string `json:"secretOverrides,omitempty"`
 

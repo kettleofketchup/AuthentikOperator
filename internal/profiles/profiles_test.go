@@ -229,3 +229,48 @@ func TestUnknownProfileFallsBackToGeneric(t *testing.T) {
 		t.Error("unknown profile should fall back to generic")
 	}
 }
+
+func TestTemplateOverrides(t *testing.T) {
+	data := newTestData()
+	overrides := map[string]string{
+		"social_auth_oidc_key":    "{{.ClientID}}",
+		"social_auth_oidc_secret": "{{.ClientSecret}}",
+		"oidc_endpoint":           "{{.IssuerURL}}",
+		"static_value":            "no-template-here",
+	}
+	result := Apply("generic", data, overrides)
+
+	checks := map[string]string{
+		"social_auth_oidc_key":    "test-client-id",
+		"social_auth_oidc_secret": "test-client-secret",
+		"oidc_endpoint":           "https://auth.example.com/application/o/test-app/",
+		"static_value":            "no-template-here",
+		// Original generic keys should still be present
+		"clientId":     "test-client-id",
+		"clientSecret": "test-client-secret",
+	}
+
+	for key, expected := range checks {
+		if result[key] != expected {
+			t.Errorf("template overrides: key %s = %q, want %q", key, result[key], expected)
+		}
+	}
+}
+
+func TestTemplateOverrideInvalidTemplate(t *testing.T) {
+	data := newTestData()
+	overrides := map[string]string{
+		"bad_template": "{{.NonExistentField}}",
+		"good_key":     "{{.ClientID}}",
+	}
+	result := Apply("generic", data, overrides)
+
+	// Invalid template should keep original value
+	if result["bad_template"] != "{{.NonExistentField}}" {
+		t.Errorf("invalid template should keep original, got %q", result["bad_template"])
+	}
+	// Valid template should resolve
+	if result["good_key"] != "test-client-id" {
+		t.Errorf("valid template should resolve, got %q", result["good_key"])
+	}
+}

@@ -1,9 +1,15 @@
 package profiles
 
-import "maps"
+import (
+	"bytes"
+	"maps"
+	"strings"
+	"text/template"
+)
 
 // Apply maps OIDCData to a secret data map using the named profile,
-// then merges overrides on top.
+// then merges overrides on top. Override values may contain Go template
+// placeholders (e.g. {{.ClientID}}) which are resolved against OIDCData.
 func Apply(profileName string, data OIDCData, overrides map[string]string) map[string]string {
 	var result map[string]string
 
@@ -22,11 +28,35 @@ func Apply(profileName string, data OIDCData, overrides map[string]string) map[s
 		result = generic(data)
 	}
 
-	maps.Copy(result, overrides)
+	resolved := resolveOverrides(overrides, data)
+	maps.Copy(result, resolved)
 	// Remove internal-only keys that shouldn't appear in the secret
 	delete(result, "redirect_uri")
 
 	return result
+}
+
+// resolveOverrides expands Go template placeholders in override values.
+// Values containing "{{" are treated as templates and rendered against OIDCData.
+// Plain string values are returned as-is.
+func resolveOverrides(overrides map[string]string, data OIDCData) map[string]string {
+	if len(overrides) == 0 {
+		return overrides
+	}
+	resolved := make(map[string]string, len(overrides))
+	for k, v := range overrides {
+		if strings.Contains(v, "{{") {
+			if rendered, err := renderTemplate(v, data); err == nil {
+				resolved[k] = rendered
+			} else {
+				// On template error, keep the original value
+				resolved[k] = v
+			}
+		} else {
+			resolved[k] = v
+		}
+	}
+	return resolved
 }
 
 func grafana(data OIDCData) map[string]string {
@@ -140,4 +170,16 @@ func generic(data OIDCData) map[string]string {
 		"issuerUrl":    data.IssuerURL,
 		"scopes":       data.Scopes,
 	}
+}
+
+func renderTemplate(tmplStr string, data OIDCData) (string, error) {
+	t, err := template.New("override").Parse(tmplStr)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }

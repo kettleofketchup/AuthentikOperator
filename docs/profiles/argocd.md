@@ -41,7 +41,10 @@ The `argocd` profile produces keys for the `argocd-secret` Kubernetes Secret, en
 Deploy the CR shown above. The operator will populate `argocd-secret` with the three keys from the mapping table. This CR is typically placed in your ArgoCD Helm chart templates.
 
 !!! tip "Target the Existing Secret"
-    The CR targets `argocd-secret` in the `argocd` namespace. This is the same secret ArgoCD already uses for other configuration. The operator merges its keys into this secret without disturbing existing keys.
+    The CR targets `argocd-secret` in the `argocd` namespace. This is the same secret ArgoCD already uses for other configuration. The operator uses server-side apply to merge its keys into this secret without disturbing existing keys managed by ArgoCD.
+
+!!! success "No `ignoreDifferences` Required"
+    The operator uses server-side apply with field manager `authentik-operator` and adds the `argocd.argoproj.io/compare-options: IgnoreExtraneous` annotation automatically. You do **not** need to add `ignoreDifferences` to your ArgoCD Application spec for operator-managed keys. See [ArgoCD Integration](../guide/configuration.md#argocd-integration) for details.
 
 ### Step 2: Configure ArgoCD Helm Values
 

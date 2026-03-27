@@ -40,8 +40,8 @@ graph LR
     TS -.->|Token| OP
     API -->|Watch| CR1
     API -->|Watch| CR2
-    API -->|Create/Update| S1
-    API -->|Create/Update| S2
+    API -->|SSA Apply| S1
+    API -->|SSA Apply| S2
     S1 -.->|envFrom| D1
     S2 -.->|envFrom| D2
 ```
@@ -78,7 +78,7 @@ sequenceDiagram
     alt Hash unchanged
         Note over Op: No-op, requeue
     else Hash changed or Secret missing
-        Op->>K8s: 5. Create/Update target Secret
+        Op->>K8s: 5. Server-side Apply target Secret<br/>(field manager: authentik-operator)
 
         opt rolloutRestart.enabled
             Op->>K8s: 6a. Patch Deployment/StatefulSet<br/>annotation with new hash
@@ -215,6 +215,20 @@ AuthentikOperator/
     - The bootstrap token is a pre-shared secret set as an environment variable on the Authentik instance at deploy time
     - The bootstrap flow creates a dedicated API token with `api` intent, then stores it in a Kubernetes Secret for the operator to use at runtime
     - The bootstrap token is only used once; the long-lived API token handles all subsequent requests
+
+### Why Server-Side Apply and ArgoCD Annotations
+
+!!! info "Design Decision"
+    The operator uses **Kubernetes server-side apply (SSA)** with field manager `authentik-operator` to write secrets, rather than the traditional Create/Update pattern.
+
+    Benefits:
+
+    - **Field ownership** -- Kubernetes tracks which fields belong to the operator vs other managers (e.g., ArgoCD). Each manager only owns the fields it applies.
+    - **ArgoCD coexistence** -- When ArgoCD also manages a secret (e.g., `argocd-secret`), SSA prevents conflicts. ArgoCD owns its fields, the operator owns its fields, and neither overwrites the other.
+    - **No `ignoreDifferences` needed** -- Users no longer need to add `ignoreDifferences` with `jsonPointers` to their ArgoCD Application specs.
+    - **Simpler code** -- SSA handles create-or-update in a single `Apply()` call, eliminating the Get/IsNotFound/Create/Update branching.
+
+    All operator-managed secrets also receive the `argocd.argoproj.io/compare-options: IgnoreExtraneous` annotation as a safety net for ArgoCD deployments that do not use `ServerSideApply=true`.
 
 ### Why Two-Step Authentik API Lookup
 

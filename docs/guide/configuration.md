@@ -233,6 +233,51 @@ authentik:
 
 ---
 
+## ArgoCD Integration
+
+The operator uses **server-side apply (SSA)** with field manager `authentik-operator` to write secrets. This means the operator and ArgoCD can manage the same secret without conflicts -- each owns only the fields it applies.
+
+### No `ignoreDifferences` Required
+
+Previous versions required `ignoreDifferences` in your ArgoCD Application spec to prevent ArgoCD from reverting operator-managed secret keys. This is no longer necessary. You can remove entries like:
+
+```yaml title="No longer needed"
+# Remove this from your ArgoCD Application spec:
+ignoreDifferences:
+  - group: ""
+    kind: Secret
+    name: argocd-secret
+    jsonPointers:
+      - /data/dex.authentik.clientSecret
+      - /data/clientId
+      - /data/issuerUrl
+```
+
+### How It Works
+
+The operator applies secrets with field manager `authentik-operator`. If your ArgoCD Application uses `ServerSideApply=true` (recommended), Kubernetes tracks field ownership natively:
+
+- **ArgoCD** owns the fields it applies (e.g., secret type, other data keys)
+- **The operator** owns the fields it applies (e.g., `dex.authentik.clientSecret`, `clientId`)
+- Neither overwrites the other's fields
+
+As a safety net, the operator also adds the `argocd.argoproj.io/compare-options: IgnoreExtraneous` annotation to all secrets it manages. This ensures compatibility even if `ServerSideApply=true` is not set.
+
+### Recommended ArgoCD syncOptions
+
+For best results, enable server-side apply in your ArgoCD Application:
+
+```yaml title="argocd-application.yaml"
+syncPolicy:
+  syncOptions:
+    - ServerSideApply=true
+```
+
+!!! tip "Works Without SSA Too"
+    The `IgnoreExtraneous` annotation ensures the operator works with ArgoCD even without `ServerSideApply=true`. SSA provides the cleanest field ownership model, but is not strictly required.
+
+---
+
 ## Scheduling
 
 Use standard Kubernetes scheduling fields to control where the operator pod runs:

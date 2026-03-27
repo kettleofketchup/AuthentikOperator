@@ -6,8 +6,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	applyconfigscorev1 "k8s.io/client-go/applyconfigurations/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -49,28 +49,21 @@ func Run(ctx context.Context, c client.Client, cfg Config) error {
 		return fmt.Errorf("creating Authentik API token: %w", err)
 	}
 
-	// Write token to K8s Secret
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cfg.TokenSecretName,
-			Namespace: cfg.Namespace,
-			Labels: map[string]string{
-				"auth.kettleofketchup/managed-by": "authentik-operator",
-				"auth.kettleofketchup/component":  "bootstrap",
-			},
-			Annotations: map[string]string{
-				// Prevent ArgoCD from pruning this out-of-band secret
-				"argocd.argoproj.io/compare-options": "IgnoreExtraneous",
-			},
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
+	// Write token to K8s Secret using server-side apply
+	secret := applyconfigscorev1.Secret(cfg.TokenSecretName, cfg.Namespace).
+		WithLabels(map[string]string{
+			"auth.kettleofketchup/managed-by": "authentik-operator",
+			"auth.kettleofketchup/component":  "bootstrap",
+		}).
+		WithAnnotations(map[string]string{
+			"argocd.argoproj.io/compare-options": "IgnoreExtraneous",
+		}).
+		WithData(map[string][]byte{
 			"token": []byte(tokenKey),
-		},
-	}
+		})
 
-	if err := c.Create(ctx, secret); err != nil {
-		return fmt.Errorf("creating token secret: %w", err)
+	if err := c.Apply(ctx, secret, client.FieldOwner("authentik-operator"), client.ForceOwnership); err != nil {
+		return fmt.Errorf("applying token secret: %w", err)
 	}
 
 	log.Info("Bootstrap complete", "secret", cfg.Namespace+"/"+cfg.TokenSecretName)

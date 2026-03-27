@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	applyconfigscorev1 "k8s.io/client-go/applyconfigurations/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -116,66 +117,33 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{RequeueAfter: requeueInterval}, nil
 	}
 
-	// 5. Create or update the target secret
+	// 5. Apply the target secret using server-side apply
 	targetNS := oidcClient.Spec.Target.Namespace
 	targetName := oidcClient.Spec.Target.SecretName
 
-	secret := &corev1.Secret{}
-	err = r.Get(ctx, types.NamespacedName{Name: targetName, Namespace: targetNS}, secret)
-	if errors.IsNotFound(err) {
-		secret = &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      targetName,
-				Namespace: targetNS,
-				Labels: map[string]string{
-					"auth.kettleofketchup/managed-by":  "authentik-operator",
-					"auth.kettleofketchup/oidc-client": oidcClient.Name,
-				},
-			},
-			Type: corev1.SecretTypeOpaque,
-			Data: toByteMap(secretData),
+	secret := applyconfigscorev1.Secret(targetName, targetNS).
+		WithLabels(map[string]string{
+			"auth.kettleofketchup/managed-by":  "authentik-operator",
+			"auth.kettleofketchup/oidc-client": oidcClient.Name,
+		}).
+		WithAnnotations(map[string]string{
+			"argocd.argoproj.io/compare-options": "IgnoreExtraneous",
+		}).
+		WithData(toByteMap(secretData))
+
+	if err := r.Apply(ctx, secret, client.FieldOwner("authentik-operator"), client.ForceOwnership); err != nil {
+		logger.Error(err, "failed to apply secret", "name", targetName, "namespace", targetNS)
+		meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
+			Type:               ConditionSecretSynced,
+			Status:             metav1.ConditionFalse,
+			Reason:             "ApplyFailed",
+			Message:            fmt.Sprintf("Failed to apply secret: %v", err),
+			ObservedGeneration: oidcClient.Generation,
+		})
+		if statusErr := r.Status().Update(ctx, oidcClient); statusErr != nil {
+			logger.Error(statusErr, "failed to update status")
 		}
-		if err := r.Create(ctx, secret); err != nil {
-			logger.Error(err, "failed to create secret", "name", targetName, "namespace", targetNS)
-			meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
-				Type:               ConditionSecretSynced,
-				Status:             metav1.ConditionFalse,
-				Reason:             "CreateFailed",
-				Message:            fmt.Sprintf("Failed to create secret: %v", err),
-				ObservedGeneration: oidcClient.Generation,
-			})
-			if statusErr := r.Status().Update(ctx, oidcClient); statusErr != nil {
-				logger.Error(statusErr, "failed to update status")
-			}
-			return ctrl.Result{RequeueAfter: requeueInterval}, nil
-		}
-	} else if err != nil {
-		logger.Error(err, "failed to get secret", "name", targetName, "namespace", targetNS)
 		return ctrl.Result{RequeueAfter: requeueInterval}, nil
-	} else {
-		// Merge new keys into existing secret data (preserves keys not managed by the operator)
-		for k, v := range toByteMap(secretData) {
-			secret.Data[k] = v
-		}
-		if secret.Labels == nil {
-			secret.Labels = make(map[string]string)
-		}
-		secret.Labels["auth.kettleofketchup/managed-by"] = "authentik-operator"
-		secret.Labels["auth.kettleofketchup/oidc-client"] = oidcClient.Name
-		if err := r.Update(ctx, secret); err != nil {
-			logger.Error(err, "failed to update secret", "name", targetName, "namespace", targetNS)
-			meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
-				Type:               ConditionSecretSynced,
-				Status:             metav1.ConditionFalse,
-				Reason:             "UpdateFailed",
-				Message:            fmt.Sprintf("Failed to update secret: %v", err),
-				ObservedGeneration: oidcClient.Generation,
-			})
-			if statusErr := r.Status().Update(ctx, oidcClient); statusErr != nil {
-				logger.Error(statusErr, "failed to update status")
-			}
-			return ctrl.Result{RequeueAfter: requeueInterval}, nil
-		}
 	}
 
 	logger.Info("secret synced", "name", targetName, "namespace", targetNS)

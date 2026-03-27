@@ -17,9 +17,14 @@ The `generic` profile uses plain OIDC variable names as secret keys, without map
 | `userinfoUrl` | `userinfoUrl` |
 | `issuerUrl` | `issuerUrl` |
 | `scopes` | `scopes` (default: `openid email profile`) |
+| `saml.crt` | signing certificate PEM. Present only when the Authentik provider has a signing key configured. |
+| `saml.fingerprint` | SHA256 fingerprint of the signing certificate. Present only when the Authentik provider has a signing key configured. |
 
 !!! info "One-to-One Mapping"
     The generic profile passes through every OIDC source field without renaming. The secret keys match the internal OIDC data field names exactly.
+
+!!! info "Signing Certificate Keys"
+    `saml.crt` and `saml.fingerprint` are conditional — they are only written to the secret when the Authentik OAuth2 provider has a `signing_key` set. If no signing key is configured on the provider, these keys are omitted entirely.
 
 ## Example CR
 

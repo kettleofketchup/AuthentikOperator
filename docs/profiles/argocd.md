@@ -21,9 +21,14 @@ The `argocd` profile produces keys for the `argocd-secret` Kubernetes Secret, en
 | `dex.authentik.clientSecret` | `clientSecret` | Referenced by Dex config as `$dex.authentik.clientSecret` |
 | `clientId` | `clientId` | Convenience key for use in Dex config |
 | `issuerUrl` | `issuerUrl` | Convenience key for use in Dex config |
+| `caData` | signing certificate (base64 PEM) | Base64-encoded PEM of the signing certificate. Present only when the Authentik provider has a signing key configured. |
+| `caFingerprint` | signing certificate SHA256 fingerprint | SHA256 fingerprint of the signing certificate. Present only when the Authentik provider has a signing key configured. |
 
 !!! info "Why So Few Keys?"
-    Unlike other profiles, the ArgoCD profile produces only three keys. ArgoCD's Dex connector reads its full configuration from the `dex.config` key in the `argocd-cm` ConfigMap. The secret only needs to hold the `clientSecret` for Dex's variable substitution (`$dex.authentik.clientSecret`), plus convenience keys for reference.
+    Unlike other profiles, the ArgoCD profile produces only three keys in the common case. ArgoCD's Dex connector reads its full configuration from the `dex.config` key in the `argocd-cm` ConfigMap. The secret only needs to hold the `clientSecret` for Dex's variable substitution (`$dex.authentik.clientSecret`), plus convenience keys for reference.
+
+!!! info "Signing Certificate Keys"
+    `caData` and `caFingerprint` appear automatically when the Authentik OAuth2 provider has a `signing_key` configured (as shown in the blueprint below). These values are useful for Dex SAML verification — `caData` can be passed directly to Dex's `caData` field and `caFingerprint` to its `caFingerprint` field in the OIDC connector config.
 
 ## Example CR
 

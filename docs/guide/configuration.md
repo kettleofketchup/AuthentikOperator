@@ -12,6 +12,11 @@ available option.
 | `authentik.url` | string | `""` | **(Required)** Base URL of the Authentik instance (e.g. `https://auth.example.com`) |
 | `authentik.bootstrapSecretRef` | string | `authentik-bootstrap` | Name of the K8s Secret containing the Authentik bootstrap token. Must exist in the operator namespace. |
 | `authentik.bootstrapSecretKey` | string | `bootstrap_token` | Key within the bootstrap secret that holds the token value |
+| `authentik.tls.insecureSkipVerify` | bool | `false` | Skip TLS certificate verification |
+| `authentik.tls.caSecretRef` | string | `""` | Name of a K8s Secret containing a custom CA certificate |
+| `authentik.tls.caSecretKey` | string | `ca.crt` | Key within the CA Secret that holds the PEM data |
+| `authentik.tls.caConfigMapRef` | string | `""` | Name of a K8s ConfigMap containing a custom CA certificate |
+| `authentik.tls.caConfigMapKey` | string | `ca.crt` | Key within the CA ConfigMap that holds the PEM data |
 | `tokenSecretName` | string | `authentik-operator-token` | Name of the K8s Secret where the operator stores its long-lived API token (created by the bootstrap Job) |
 | `reconcileInterval` | string | `5m` | How often the operator re-syncs each `OIDCClient` with Authentik |
 | `bootstrap.enabled` | bool | `true` | Whether to create the bootstrap Job that provisions the API token |
@@ -159,6 +164,72 @@ bootstrap:
   ttlSecondsAfterFinished: 300    # Cleanup delay (non-ArgoCD)
   activeDeadlineSeconds: 600      # Timeout for bootstrap retries
 ```
+
+---
+
+## TLS Configuration
+
+By default the operator verifies TLS using the system certificate pool. If your Authentik instance is served over HTTPS with an internal CA or a self-signed certificate, you must supply the CA certificate so the operator (and bootstrap Job) can trust the connection.
+
+### Providing a CA Certificate
+
+You can supply the CA certificate from a Kubernetes Secret or a ConfigMap. If both are set, the Secret takes precedence.
+
+=== "Secret"
+
+    Create a Secret containing the PEM-encoded CA certificate, then reference it in your values:
+
+    ```yaml title="values.yaml"
+    authentik:
+      url: https://auth.example.com
+      tls:
+        caSecretRef: authentik-ca
+        caSecretKey: ca.crt   # default; omit if using this key name
+    ```
+
+    Create the Secret:
+
+    ```sh
+    kubectl create secret generic authentik-ca \
+      --from-file=ca.crt=/path/to/ca.pem \
+      -n <operator-namespace>
+    ```
+
+=== "ConfigMap"
+
+    Create a ConfigMap containing the PEM-encoded CA certificate, then reference it in your values:
+
+    ```yaml title="values.yaml"
+    authentik:
+      url: https://auth.example.com
+      tls:
+        caConfigMapRef: authentik-ca
+        caConfigMapKey: ca.crt   # default; omit if using this key name
+    ```
+
+    Create the ConfigMap:
+
+    ```sh
+    kubectl create configmap authentik-ca \
+      --from-file=ca.crt=/path/to/ca.pem \
+      -n <operator-namespace>
+    ```
+
+### Skipping TLS Verification
+
+`insecureSkipVerify` disables all certificate verification and is available as a temporary debugging escape hatch:
+
+```yaml title="values.yaml"
+authentik:
+  tls:
+    insecureSkipVerify: true
+```
+
+!!! warning "Not for production"
+    `insecureSkipVerify: true` removes all TLS protection and must not be used in production environments.
+
+!!! info "Bootstrap Job shares TLS configuration"
+    The one-time bootstrap Job uses the same `authentik.tls` settings as the operator. You do not need separate TLS configuration for bootstrap.
 
 ---
 

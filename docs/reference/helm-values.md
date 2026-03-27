@@ -44,6 +44,26 @@ Configuration for connecting to the Authentik instance.
 
 ---
 
+## TLS / CA Certificate
+
+Settings for TLS verification when connecting to the Authentik instance.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `authentik.tls.insecureSkipVerify` | `bool` | `false` | Skip TLS certificate verification entirely. |
+| `authentik.tls.caSecretRef` | `string` | `""` | Name of a Kubernetes Secret containing a custom CA certificate. Takes precedence over `caConfigMapRef` if both are set. |
+| `authentik.tls.caSecretKey` | `string` | `ca.crt` | Key within the CA Secret that holds the PEM certificate data. |
+| `authentik.tls.caConfigMapRef` | `string` | `""` | Name of a Kubernetes ConfigMap containing a custom CA certificate. |
+| `authentik.tls.caConfigMapKey` | `string` | `ca.crt` | Key within the CA ConfigMap that holds the PEM certificate data. |
+
+!!! warning "insecureSkipVerify is not for production"
+    Setting `insecureSkipVerify: true` disables all TLS verification and makes the connection vulnerable to man-in-the-middle attacks. Use it only as a temporary debugging escape hatch, never in production environments.
+
+!!! info "kube-root-ca.crt is not the ingress CA"
+    The `kube-root-ca.crt` ConfigMap present in every namespace contains the cluster's internal API server CA, not the CA for your Authentik ingress. You must supply your own CA bundle if your Authentik instance uses an internal or self-signed certificate.
+
+---
+
 ## Bootstrap
 
 Settings for the one-time bootstrap Job that creates the operator's Authentik API token.
@@ -134,6 +154,15 @@ Settings for the one-time bootstrap Job that creates the operator's Authentik AP
       bootstrapSecretRef: authentik-bootstrap
       # Key within the bootstrap secret that holds the token
       bootstrapSecretKey: bootstrap_token
+      tls:
+        # Skip TLS certificate verification (not for production)
+        insecureSkipVerify: false
+        # Name of a K8s Secret containing a custom CA certificate (takes precedence over ConfigMap)
+        caSecretRef: ""
+        caSecretKey: ca.crt
+        # Name of a K8s ConfigMap containing a custom CA certificate
+        caConfigMapRef: ""
+        caConfigMapKey: ca.crt
 
     tokenSecretName: authentik-operator-token
 

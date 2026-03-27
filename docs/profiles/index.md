@@ -34,6 +34,20 @@ The operator retrieves and derives the following values from the Authentik API f
 !!! tip "Fallback Behavior"
     If an unrecognized profile name is specified, the operator falls back to the `generic` profile.
 
+## SAML Signing Certificate Keys
+
+When an Authentik OAuth2 provider has a **signing key** configured (under System > Certificates), the operator automatically fetches the certificate and adds it to the generated secret.
+
+| Profile | Added Keys |
+|:--------|:-----------|
+| `argocd` | `caData` (base64 PEM), `caFingerprint` (SHA256) |
+| All others | `saml.crt` (PEM), `saml.fingerprint` (SHA256) |
+
+These keys only appear when the provider's `signing_key` field is set in Authentik. If no signing key is configured, no additional keys are added.
+
+!!! tip "Useful for SAML Verification"
+    Apps like Dex need the signing certificate to verify SAML assertions. The operator exposes this data automatically so you don't need to manually copy certificates.
+
 ## Secret Overrides
 
 Every profile produces a base set of key-value pairs. The `secretOverrides` field in the `OIDCClient` CR lets you **add or replace** keys on top of the profile output.

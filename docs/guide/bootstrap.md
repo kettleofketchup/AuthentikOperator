@@ -165,6 +165,35 @@ The `IgnoreExtraneous` annotation prevents ArgoCD from pruning this out-of-band 
 **Fix:** Confirm the URL is correct and that Authentik pods are running. If using ArgoCD,
 ensure Authentik is in an earlier sync wave than the operator.
 
+### Bootstrap Job fails with TLS certificate error
+
+**Symptom:** Job logs show `x509: certificate signed by unknown authority`.
+
+**Causes:**
+
+- Authentik is behind an internal CA (e.g., a self-signed or private CA certificate).
+- The operator does not trust the CA that signed Authentik's TLS certificate.
+
+**Fix:** Provide the CA certificate via Helm values. The bootstrap Job shares the same TLS
+configuration as the operator. See [TLS Configuration](configuration.md#tls-configuration)
+for details.
+
+```yaml title="values.yaml"
+authentik:
+  url: https://auth.example.com
+  tls:
+    caSecretRef: my-ca-cert-secret
+    caSecretKey: ca.crt
+```
+
+For quick debugging, you can temporarily disable TLS verification:
+
+```yaml title="values.yaml (debugging only)"
+authentik:
+  tls:
+    insecureSkipVerify: true
+```
+
 ### Token secret already exists
 
 The bootstrap Job handles this gracefully. If the token `authentik-operator` already exists in

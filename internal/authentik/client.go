@@ -200,6 +200,34 @@ func (c *Client) GetOAuth2ProviderBySlug(ctx context.Context, slug string) (*OAu
 	return &listResp.Results[0], nil
 }
 
+// GetCertificateByID fetches a certificate keypair from Authentik.
+func (c *Client) GetCertificateByID(ctx context.Context, id string) (*CertificateKeypair, error) {
+	certURL := fmt.Sprintf("%s/api/v3/crypto/certificatekeypairs/%s/", c.baseURL, url.PathEscape(id))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, certURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating certificate request: %w", err)
+	}
+	c.setAuth(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetching certificate: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		return nil, fmt.Errorf("authentik API returned %d for certificate %q: %s", resp.StatusCode, id, string(body))
+	}
+
+	var cert CertificateKeypair
+	if err := json.NewDecoder(resp.Body).Decode(&cert); err != nil {
+		return nil, fmt.Errorf("decoding certificate response: %w", err)
+	}
+
+	return &cert, nil
+}
+
 // tokenCreateRequest is the JSON body for POST /api/v3/core/tokens/.
 type tokenCreateRequest struct {
 	Identifier  string `json:"identifier"`

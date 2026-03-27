@@ -47,6 +47,7 @@ func TestGetOAuth2ProviderBySlug(t *testing.T) {
 						ClientID:                "client-id-123",
 						ClientSecret:            "client-secret-456",
 						ClientType:              "confidential",
+						SigningKey:              stringPtr("uuid-signing-key-456"),
 						AssignedApplicationSlug: "grafana",
 						AssignedApplicationName: "Grafana",
 					},
@@ -71,6 +72,9 @@ func TestGetOAuth2ProviderBySlug(t *testing.T) {
 	}
 	if provider.ClientSecret != "client-secret-456" {
 		t.Errorf("expected client-secret-456, got %s", provider.ClientSecret)
+	}
+	if provider.SigningKey == nil || *provider.SigningKey != "uuid-signing-key-456" {
+		t.Errorf("expected signing key uuid-signing-key-456, got %v", provider.SigningKey)
 	}
 }
 
@@ -274,6 +278,62 @@ func TestNewClient_WithCACertPath(t *testing.T) {
 	}
 	resp.Body.Close()
 }
+
+func TestGetCertificateByID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Path != "/api/v3/crypto/certificatekeypairs/uuid-cert-123/" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+
+		resp := map[string]interface{}{
+			"pk":                 "uuid-cert-123",
+			"name":               "authentik Self-signed Certificate",
+			"certificate_data":   "-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----\n",
+			"fingerprint_sha256": "AB:CD:EF:01:23:45:67:89",
+			"cert_expiry":        "2027-01-01T00:00:00Z",
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "test-token")
+	cert, err := c.GetCertificateByID(context.Background(), "uuid-cert-123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cert.Name != "authentik Self-signed Certificate" {
+		t.Errorf("expected cert name, got %s", cert.Name)
+	}
+	if cert.FingerprintSHA256 != "AB:CD:EF:01:23:45:67:89" {
+		t.Errorf("expected fingerprint, got %s", cert.FingerprintSHA256)
+	}
+	if cert.CertificateData == "" {
+		t.Error("expected certificate PEM data")
+	}
+}
+
+func TestGetCertificateByID_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"detail": "Not found."}`))
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "test-token")
+	_, err := c.GetCertificateByID(context.Background(), "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for missing cert")
+	}
+}
+
+func stringPtr(s string) *string { return &s }
 
 func hasBearer(r *http.Request) bool {
 	auth := r.Header.Get("Authorization")

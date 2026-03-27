@@ -2,6 +2,7 @@ package profiles
 
 import (
 	"bytes"
+	"encoding/base64"
 	"maps"
 	"strings"
 	"text/template"
@@ -32,6 +33,27 @@ func Apply(profileName string, data OIDCData, overrides map[string]string) map[s
 	maps.Copy(result, resolved)
 	// Remove internal-only keys that shouldn't appear in the secret
 	delete(result, "redirect_uri")
+
+	return result
+}
+
+// ApplyWithCert is like Apply but also merges signing cert data into the result.
+// If cert is nil, behaves identically to Apply.
+func ApplyWithCert(profileName string, data OIDCData, overrides map[string]string, cert *SigningCert) map[string]string {
+	result := Apply(profileName, data, overrides)
+
+	if cert == nil {
+		return result
+	}
+
+	switch profileName {
+	case "argocd":
+		result["caData"] = base64.StdEncoding.EncodeToString([]byte(cert.CertificatePEM))
+		result["caFingerprint"] = cert.FingerprintSHA256
+	default:
+		result["saml.crt"] = cert.CertificatePEM
+		result["saml.fingerprint"] = cert.FingerprintSHA256
+	}
 
 	return result
 }

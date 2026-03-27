@@ -17,6 +17,16 @@ authentik:
   bootstrapSecretRef: authentik-bootstrap
   # Key within the bootstrap secret that holds the token
   bootstrapSecretKey: bootstrap_token
+  tls:
+    # Skip TLS certificate verification (NOT recommended for production)
+    insecureSkipVerify: false
+    # Reference to a K8s Secret containing the CA certificate
+    # NOTE: This is NOT the kube-root-ca.crt ConfigMap — provide your own CA cert
+    caSecretRef: ""
+    caSecretKey: "ca.crt"
+    # Reference to a ConfigMap containing the CA certificate
+    caConfigMapRef: ""
+    caConfigMapKey: "ca.crt"
 
 tokenSecretName: authentik-operator-token
 

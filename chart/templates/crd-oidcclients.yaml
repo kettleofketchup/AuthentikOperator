@@ -71,6 +71,30 @@ spec:
                 required:
                 - applicationSlug
                 type: object
+              configMapTarget:
+                description: ConfigMapTarget patches a ConfigMap with a profile-generated
+                  value
+                properties:
+                  dataKey:
+                    description: DataKey is the key inside the ConfigMap's data to
+                      write to
+                    type: string
+                  name:
+                    description: Name of the ConfigMap to patch
+                    type: string
+                  namespace:
+                    description: Namespace of the ConfigMap
+                    type: string
+                  sourceKey:
+                    description: SourceKey is the profile-generated secret key to
+                      read the value from
+                    type: string
+                required:
+                - dataKey
+                - name
+                - namespace
+                - sourceKey
+                type: object
               rolloutRestart:
                 description: RolloutRestart configures automatic workload restart
                   on secret changes
@@ -105,8 +129,10 @@ spec:
               secretOverrides:
                 additionalProperties:
                   type: string
-                description: SecretOverrides adds or overrides keys in the generated
-                  secret
+                description: |-
+                  SecretOverrides adds or overrides keys in the generated secret.
+                  Values may contain Go template placeholders resolved against OIDCData
+                  (e.g. "{{.ClientID}}", "{{.ClientSecret}}", "{{.IssuerURL}}").
                 type: object
               secretProfile:
                 default: generic
@@ -116,6 +142,7 @@ spec:
                 - openwebui
                 - argocd
                 - ragflow
+                - harbor
                 - generic
                 type: string
               target:

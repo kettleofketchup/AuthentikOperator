@@ -73,6 +73,9 @@ func main() {
 	var authentikURL string
 	var authentikTokenSecret string
 	var reconcileInterval time.Duration
+	var authentikCACertPath string
+	var authentikCACertData string
+	var authentikInsecureSkipVerify bool
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -95,6 +98,12 @@ func main() {
 	flag.StringVar(&authentikTokenSecret, "authentik-token-secret",
 		"authentik-operator-token", "Name of the secret containing the Authentik API token")
 	flag.DurationVar(&reconcileInterval, "reconcile-interval", 5*time.Minute, "Reconciliation interval")
+	flag.StringVar(&authentikCACertPath, "authentik-ca-cert-path", "",
+		"Path to CA certificate file for Authentik API TLS verification")
+	flag.StringVar(&authentikCACertData, "authentik-ca-cert-data", "",
+		"Inline CA certificate data (PEM, DER, or base64-encoded DER) for Authentik API TLS verification")
+	flag.BoolVar(&authentikInsecureSkipVerify, "authentik-insecure-skip-verify", false,
+		"Skip TLS certificate verification for Authentik API (NOT recommended for production)")
 	opts := zap.Options{
 		Development: false,
 	}
@@ -120,12 +129,24 @@ func main() {
 			namespace = "default"
 		}
 
+		var bootstrapOpts []authentik.ClientOption
+		if authentikCACertPath != "" {
+			bootstrapOpts = append(bootstrapOpts, authentik.WithCACertPath(authentikCACertPath))
+		}
+		if authentikCACertData != "" {
+			bootstrapOpts = append(bootstrapOpts, authentik.WithCACertData([]byte(authentikCACertData)))
+		}
+		if authentikInsecureSkipVerify {
+			bootstrapOpts = append(bootstrapOpts, authentik.WithInsecureSkipVerify(true))
+		}
+
 		bsCfg := bootstrap.Config{
 			AuthentikURL:    os.Getenv("AUTHENTIK_URL"),
 			BootstrapToken:  os.Getenv("AUTHENTIK_BOOTSTRAP_TOKEN"),
 			TokenIdentifier: "authentik-operator",
 			TokenSecretName: os.Getenv("TOKEN_SECRET_NAME"),
 			Namespace:       namespace,
+			ClientOpts:      bootstrapOpts,
 		}
 
 		if err := bootstrap.Run(ctrl.LoggerInto(context.Background(), setupLog), c, bsCfg); err != nil {
@@ -250,7 +271,18 @@ func main() {
 		}
 	}
 
-	authentikClient := authentik.NewClient(authentikURL, authentikToken)
+	var clientOpts []authentik.ClientOption
+	if authentikCACertPath != "" {
+		clientOpts = append(clientOpts, authentik.WithCACertPath(authentikCACertPath))
+	}
+	if authentikCACertData != "" {
+		clientOpts = append(clientOpts, authentik.WithCACertData([]byte(authentikCACertData)))
+	}
+	if authentikInsecureSkipVerify {
+		clientOpts = append(clientOpts, authentik.WithInsecureSkipVerify(true))
+	}
+
+	authentikClient := authentik.NewClient(authentikURL, authentikToken, clientOpts...)
 
 	if err := (&controller.OIDCClientReconciler{
 		Client:            mgr.GetClient(),

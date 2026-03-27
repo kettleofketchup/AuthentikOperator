@@ -91,9 +91,24 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		ObservedGeneration: oidcClient.Generation,
 	})
 
+	// Fetch signing certificate if configured on provider
+	var signingCert *profiles.SigningCert
+	if provider.SigningKey != nil && *provider.SigningKey != "" {
+		certKP, err := r.AuthentikClient.GetCertificateByID(ctx, *provider.SigningKey)
+		if err != nil {
+			logger.Error(err, "failed to fetch signing certificate", "id", *provider.SigningKey)
+			// Non-fatal: continue without signing cert
+		} else {
+			signingCert = &profiles.SigningCert{
+				CertificatePEM:    certKP.CertificateData,
+				FingerprintSHA256: certKP.FingerprintSHA256,
+			}
+		}
+	}
+
 	// 3. Build OIDC data and apply profile
 	oidcData := profiles.BuildOIDCData(r.AuthentikURL, slug, provider.ClientID, provider.ClientSecret)
-	secretData := profiles.Apply(oidcClient.Spec.SecretProfile, oidcData, oidcClient.Spec.SecretOverrides)
+	secretData := profiles.ApplyWithCert(oidcClient.Spec.SecretProfile, oidcData, oidcClient.Spec.SecretOverrides, signingCert)
 
 	// 4. Compute hash and compare
 	newHash := hash.ComputeSecretHash(secretData)
@@ -138,7 +153,10 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "failed to get secret", "name", targetName, "namespace", targetNS)
 		return ctrl.Result{RequeueAfter: requeueInterval}, nil
 	} else {
-		secret.Data = toByteMap(secretData)
+		// Merge new keys into existing secret data (preserves keys not managed by the operator)
+		for k, v := range toByteMap(secretData) {
+			secret.Data[k] = v
+		}
 		if secret.Labels == nil {
 			secret.Labels = make(map[string]string)
 		}

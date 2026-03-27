@@ -257,6 +257,66 @@ func TestTemplateOverrides(t *testing.T) {
 	}
 }
 
+func TestArgoCDProfile_WithSigningCert(t *testing.T) {
+	data := newTestData()
+	cert := &SigningCert{
+		CertificatePEM:    "-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----\n",
+		FingerprintSHA256: "AB:CD:EF:01:23:45",
+	}
+	result := ApplyWithCert("argocd", data, nil, cert)
+
+	if result["dex.authentik.clientSecret"] != data.ClientSecret {
+		t.Error("missing clientSecret")
+	}
+	if result["caData"] == "" {
+		t.Error("argocd profile should include caData when signing cert provided")
+	}
+	if result["caFingerprint"] != "AB:CD:EF:01:23:45" {
+		t.Errorf("expected fingerprint, got %s", result["caFingerprint"])
+	}
+}
+
+func TestGenericProfile_WithSigningCert(t *testing.T) {
+	data := newTestData()
+	cert := &SigningCert{
+		CertificatePEM:    "-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----\n",
+		FingerprintSHA256: "AB:CD:EF:01:23:45",
+	}
+	result := ApplyWithCert("generic", data, nil, cert)
+
+	if result["saml.crt"] != cert.CertificatePEM {
+		t.Error("generic profile should include saml.crt")
+	}
+	if result["saml.fingerprint"] != "AB:CD:EF:01:23:45" {
+		t.Error("generic profile should include saml.fingerprint")
+	}
+}
+
+func TestApplyWithCert_NilCert(t *testing.T) {
+	data := newTestData()
+	result := ApplyWithCert("argocd", data, nil, nil)
+
+	if result["dex.authentik.clientSecret"] != data.ClientSecret {
+		t.Error("missing clientSecret")
+	}
+	if _, ok := result["caData"]; ok {
+		t.Error("should not include caData when cert is nil")
+	}
+}
+
+func TestGrafanaProfile_WithSigningCert(t *testing.T) {
+	data := newTestData()
+	cert := &SigningCert{
+		CertificatePEM:    "-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----\n",
+		FingerprintSHA256: "AB:CD:EF:01:23:45",
+	}
+	result := ApplyWithCert("grafana", data, nil, cert)
+
+	if result["saml.crt"] != cert.CertificatePEM {
+		t.Error("should include saml.crt for profiles that don't have special handling")
+	}
+}
+
 func TestTemplateOverrideInvalidTemplate(t *testing.T) {
 	data := newTestData()
 	overrides := map[string]string{

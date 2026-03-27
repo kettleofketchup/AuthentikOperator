@@ -43,6 +43,7 @@ spec:
             - --leader-elect
             {{- end }}
             - --health-probe-bind-address=:{{ .Values.healthProbePort }}
+            {{- include "authentik-operator.tls-args" . | nindent 12 }}
           env:
             - name: AUTHENTIK_TOKEN
               valueFrom:
@@ -73,6 +74,8 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "authentik-operator.tls-volumemounts" . | nindent 12 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -84,4 +87,8 @@ spec:
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.authentik.tls.caSecretRef .Values.authentik.tls.caConfigMapRef }}
+      volumes:
+        {{- include "authentik-operator.tls-volumes" . | nindent 8 }}
       {{- end }}

@@ -3,18 +3,47 @@ package authentik
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
 )
 
 var ErrProviderNotFound = errors.New("oauth2 provider not found for application slug")
+
+// clientConfig holds optional TLS configuration for the HTTP client.
+type clientConfig struct {
+	caCertPath         string
+	caCertData         []byte
+	insecureSkipVerify bool
+}
+
+// ClientOption is a functional option for configuring the Authentik HTTP client.
+type ClientOption func(*clientConfig)
+
+// WithCACertPath configures a path to a PEM-encoded CA certificate file.
+func WithCACertPath(path string) ClientOption {
+	return func(c *clientConfig) { c.caCertPath = path }
+}
+
+// WithCACertData configures raw PEM-encoded CA certificate data.
+func WithCACertData(data []byte) ClientOption {
+	return func(c *clientConfig) { c.caCertData = data }
+}
+
+// WithInsecureSkipVerify disables TLS certificate verification.
+func WithInsecureSkipVerify(skip bool) ClientOption {
+	return func(c *clientConfig) { c.insecureSkipVerify = skip }
+}
 
 // Client is an HTTP client for the Authentik API v3
 type Client struct {
@@ -26,12 +55,75 @@ type Client struct {
 
 // NewClient creates a new Authentik API client.
 // All requests use Bearer token auth (Authentik does not support Basic auth).
-func NewClient(baseURL, token string) *Client {
+func NewClient(baseURL, token string, opts ...ClientOption) *Client {
+	cfg := &clientConfig{}
+	for _, o := range opts {
+		o(cfg)
+	}
+
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+
+	if tlsCfg := buildTLSConfig(cfg); tlsCfg != nil {
+		httpClient.Transport = &http.Transport{TLSClientConfig: tlsCfg}
+	}
+
 	return &Client{
 		baseURL:    strings.TrimRight(baseURL, "/"),
 		token:      token,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httpClient,
 	}
+}
+
+// buildTLSConfig constructs a *tls.Config from the provided clientConfig.
+// Returns nil if no TLS options are set (use default client behaviour).
+func buildTLSConfig(cfg *clientConfig) *tls.Config {
+	if cfg.caCertPath == "" && len(cfg.caCertData) == 0 && !cfg.insecureSkipVerify {
+		return nil
+	}
+
+	tlsCfg := &tls.Config{} //nolint:gosec
+
+	if cfg.insecureSkipVerify {
+		log.Println("WARNING: TLS certificate verification is disabled (insecureSkipVerify)")
+		tlsCfg.InsecureSkipVerify = true //nolint:gosec
+		return tlsCfg
+	}
+
+	pool, err := x509.SystemCertPool()
+	if err != nil {
+		log.Printf("WARNING: failed to load system cert pool, using empty pool: %v", err)
+		pool = x509.NewCertPool()
+	}
+
+	if cfg.caCertPath != "" {
+		data, err := os.ReadFile(cfg.caCertPath)
+		if err != nil {
+			log.Printf("WARNING: failed to read CA cert file %q: %v", cfg.caCertPath, err)
+		} else {
+			certs, _, parseErr := ParseCertificates(data)
+			if parseErr != nil {
+				log.Printf("WARNING: failed to parse CA certs from %q: %v", cfg.caCertPath, parseErr)
+			} else {
+				for _, cert := range certs {
+					pool.AddCert(cert)
+				}
+			}
+		}
+	}
+
+	if len(cfg.caCertData) > 0 {
+		certs, _, parseErr := ParseCertificates(cfg.caCertData)
+		if parseErr != nil {
+			log.Printf("WARNING: failed to parse inline CA cert data: %v", parseErr)
+		} else {
+			for _, cert := range certs {
+				pool.AddCert(cert)
+			}
+		}
+	}
+
+	tlsCfg.RootCAs = pool
+	return tlsCfg
 }
 
 // SetToken updates the Bearer token (used when refreshing from K8s secret).
@@ -106,6 +198,34 @@ func (c *Client) GetOAuth2ProviderBySlug(ctx context.Context, slug string) (*OAu
 	}
 
 	return &listResp.Results[0], nil
+}
+
+// GetCertificateByID fetches a certificate keypair from Authentik.
+func (c *Client) GetCertificateByID(ctx context.Context, id string) (*CertificateKeypair, error) {
+	certURL := fmt.Sprintf("%s/api/v3/crypto/certificatekeypairs/%s/", c.baseURL, url.PathEscape(id))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, certURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating certificate request: %w", err)
+	}
+	c.setAuth(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetching certificate: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		return nil, fmt.Errorf("authentik API returned %d for certificate %q: %s", resp.StatusCode, id, string(body))
+	}
+
+	var cert CertificateKeypair
+	if err := json.NewDecoder(resp.Body).Decode(&cert); err != nil {
+		return nil, fmt.Errorf("decoding certificate response: %w", err)
+	}
+
+	return &cert, nil
 }
 
 // tokenCreateRequest is the JSON body for POST /api/v3/core/tokens/.

@@ -14,6 +14,12 @@ type OIDCData struct {
 	Scopes       string
 }
 
+// SigningCert holds the SAML signing certificate data from Authentik.
+type SigningCert struct {
+	CertificatePEM    string
+	FingerprintSHA256 string
+}
+
 // BuildOIDCData constructs OIDCData from Authentik provider details and base URL.
 //
 // IMPORTANT: Token and Userinfo endpoints are GLOBAL in Authentik, not per-slug.

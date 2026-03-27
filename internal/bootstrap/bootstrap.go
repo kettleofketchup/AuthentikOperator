@@ -21,6 +21,7 @@ type Config struct {
 	TokenIdentifier string
 	TokenSecretName string
 	Namespace       string
+	ClientOpts      []authentik.ClientOption
 }
 
 // Run executes the bootstrap flow:
@@ -42,7 +43,7 @@ func Run(ctx context.Context, c client.Client, cfg Config) error {
 	}
 
 	// Create API token in Authentik using Bearer auth (NOT Basic — Authentik does not support Basic)
-	authentikClient := authentik.NewClient(cfg.AuthentikURL, cfg.BootstrapToken)
+	authentikClient := authentik.NewClient(cfg.AuthentikURL, cfg.BootstrapToken, cfg.ClientOpts...)
 	tokenKey, err := authentikClient.CreateAPIToken(ctx, cfg.TokenIdentifier)
 	if err != nil {
 		return fmt.Errorf("creating Authentik API token: %w", err)

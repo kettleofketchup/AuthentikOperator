@@ -91,9 +91,24 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		ObservedGeneration: oidcClient.Generation,
 	})
 
+	// Fetch signing certificate if configured on provider
+	var signingCert *profiles.SigningCert
+	if provider.SigningKey != nil && *provider.SigningKey != "" {
+		certKP, err := r.AuthentikClient.GetCertificateByID(ctx, *provider.SigningKey)
+		if err != nil {
+			logger.Error(err, "failed to fetch signing certificate", "id", *provider.SigningKey)
+			// Non-fatal: continue without signing cert
+		} else {
+			signingCert = &profiles.SigningCert{
+				CertificatePEM:    certKP.CertificateData,
+				FingerprintSHA256: certKP.FingerprintSHA256,
+			}
+		}
+	}
+
 	// 3. Build OIDC data and apply profile
 	oidcData := profiles.BuildOIDCData(r.AuthentikURL, slug, provider.ClientID, provider.ClientSecret)
-	secretData := profiles.Apply(oidcClient.Spec.SecretProfile, oidcData, oidcClient.Spec.SecretOverrides)
+	secretData := profiles.ApplyWithCert(oidcClient.Spec.SecretProfile, oidcData, oidcClient.Spec.SecretOverrides, signingCert)
 
 	// 4. Compute hash and compare
 	newHash := hash.ComputeSecretHash(secretData)

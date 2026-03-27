@@ -153,7 +153,10 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "failed to get secret", "name", targetName, "namespace", targetNS)
 		return ctrl.Result{RequeueAfter: requeueInterval}, nil
 	} else {
-		secret.Data = toByteMap(secretData)
+		// Merge new keys into existing secret data (preserves keys not managed by the operator)
+		for k, v := range toByteMap(secretData) {
+			secret.Data[k] = v
+		}
 		if secret.Labels == nil {
 			secret.Labels = make(map[string]string)
 		}

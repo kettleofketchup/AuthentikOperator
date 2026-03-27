@@ -3,9 +3,11 @@ package authentik
 import (
 	"context"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 )
 
@@ -201,6 +203,76 @@ func TestCreateAPIToken_AlreadyExists(t *testing.T) {
 	if key != "existing-key-456" {
 		t.Errorf("expected existing-key-456, got %s", key)
 	}
+}
+
+func TestNewClient_WithInsecureSkipVerify(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	// Without insecure — should fail TLS
+	c := NewClient(server.URL, "test-token")
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	_, err := c.httpClient.Do(req)
+	if err == nil {
+		t.Fatal("expected TLS error without insecure skip verify")
+	}
+
+	// With insecure — should succeed
+	c2 := NewClient(server.URL, "test-token", WithInsecureSkipVerify(true))
+	req2, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	resp, err := c2.httpClient.Do(req2)
+	if err != nil {
+		t.Fatalf("unexpected error with insecure skip verify: %v", err)
+	}
+	resp.Body.Close()
+}
+
+func TestNewClient_WithCACertData(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	serverCert := server.TLS.Certificates[0]
+	caPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: serverCert.Certificate[0],
+	})
+
+	c := NewClient(server.URL, "test-token", WithCACertData(caPEM))
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("unexpected error with CA cert: %v", err)
+	}
+	resp.Body.Close()
+}
+
+func TestNewClient_WithCACertPath(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	serverCert := server.TLS.Certificates[0]
+	caPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: serverCert.Certificate[0],
+	})
+	tmpFile := t.TempDir() + "/ca.crt"
+	if err := os.WriteFile(tmpFile, caPEM, 0644); err != nil {
+		t.Fatalf("writing temp cert: %v", err)
+	}
+
+	c := NewClient(server.URL, "test-token", WithCACertPath(tmpFile))
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("unexpected error with CA cert path: %v", err)
+	}
+	resp.Body.Close()
 }
 
 func hasBearer(r *http.Request) bool {

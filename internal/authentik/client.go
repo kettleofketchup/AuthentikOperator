@@ -133,6 +133,13 @@ func (c *Client) SetToken(token string) {
 	c.token = token
 }
 
+// HasToken reports whether the client has a non-empty Bearer token.
+func (c *Client) HasToken() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.token != ""
+}
+
 // GetOAuth2ProviderBySlug fetches the OAuth2 provider for a given application slug.
 // This is a two-step process:
 //  1. GET /api/v3/core/applications/{slug}/ to get the application PK

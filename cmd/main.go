@@ -284,12 +284,19 @@ func main() {
 
 	authentikClient := authentik.NewClient(authentikURL, authentikToken, clientOpts...)
 
+	tokenNamespace := os.Getenv("POD_NAMESPACE")
+	if tokenNamespace == "" {
+		tokenNamespace = "default"
+	}
+
 	if err := (&controller.OIDCClientReconciler{
-		Client:            mgr.GetClient(),
-		Scheme:            mgr.GetScheme(),
-		AuthentikClient:   authentikClient,
-		AuthentikURL:      authentikURL,
-		ReconcileInterval: reconcileInterval,
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		AuthentikClient:      authentikClient,
+		AuthentikURL:         authentikURL,
+		ReconcileInterval:    reconcileInterval,
+		TokenSecretName:      authentikTokenSecret,
+		TokenSecretNamespace: tokenNamespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "OIDCClient")
 		os.Exit(1)

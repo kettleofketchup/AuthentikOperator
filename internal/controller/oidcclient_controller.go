@@ -33,10 +33,12 @@ const (
 // OIDCClientReconciler reconciles an OIDCClient object
 type OIDCClientReconciler struct {
 	client.Client
-	Scheme            *runtime.Scheme
-	AuthentikClient   *authentik.Client
-	AuthentikURL      string
-	ReconcileInterval time.Duration
+	Scheme               *runtime.Scheme
+	AuthentikClient      *authentik.Client
+	AuthentikURL         string
+	ReconcileInterval    time.Duration
+	TokenSecretName      string
+	TokenSecretNamespace string
 }
 
 // +kubebuilder:rbac:groups=auth.kettleofketchup,resources=oidcclients,verbs=get;list;watch;create;update;patch;delete
@@ -54,6 +56,24 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	requeueInterval := r.ReconcileInterval
 	if requeueInterval == 0 {
 		requeueInterval = 5 * time.Minute
+	}
+
+	// 0. Ensure we have an Authentik API token (may not exist at startup if bootstrap job hasn't run yet)
+	if !r.AuthentikClient.HasToken() && r.TokenSecretName != "" {
+		tokenSecret := &corev1.Secret{}
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      r.TokenSecretName,
+			Namespace: r.TokenSecretNamespace,
+		}, tokenSecret); err == nil {
+			if tok := string(tokenSecret.Data["token"]); tok != "" {
+				r.AuthentikClient.SetToken(tok)
+				logger.Info("loaded Authentik API token from secret", "secret", r.TokenSecretName)
+			}
+		}
+		if !r.AuthentikClient.HasToken() {
+			logger.Info("Authentik API token not yet available, will retry", "secret", r.TokenSecretName)
+			return ctrl.Result{RequeueAfter: requeueInterval}, nil
+		}
 	}
 
 	// 1. Get the CR

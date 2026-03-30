@@ -22,6 +22,7 @@ type Config struct {
 	TokenSecretName string
 	Namespace       string
 	ClientOpts      []authentik.ClientOption
+	ForceRefresh    bool // Delete existing secret before re-creating
 }
 
 // Run executes the bootstrap flow:
@@ -35,10 +36,15 @@ func Run(ctx context.Context, c client.Client, cfg Config) error {
 	existing := &corev1.Secret{}
 	err := c.Get(ctx, types.NamespacedName{Name: cfg.TokenSecretName, Namespace: cfg.Namespace}, existing)
 	if err == nil {
-		log.Info("Token secret already exists, skipping bootstrap")
-		return nil
-	}
-	if !errors.IsNotFound(err) {
+		if !cfg.ForceRefresh {
+			log.Info("Token secret already exists, skipping bootstrap")
+			return nil
+		}
+		log.Info("Force refresh: deleting stale token secret", "secret", cfg.TokenSecretName)
+		if err := c.Delete(ctx, existing); err != nil {
+			return fmt.Errorf("deleting stale token secret: %w", err)
+		}
+	} else if !errors.IsNotFound(err) {
 		return fmt.Errorf("checking existing secret: %w", err)
 	}
 

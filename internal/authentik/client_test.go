@@ -133,6 +133,35 @@ func TestGetOAuth2ProviderBySlug_Unauthorized(t *testing.T) {
 	}
 }
 
+func TestGetOAuth2ProviderBySlug_TokenExpired(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"detail":"Token invalid/expired"}`))
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "expired-token")
+	_, err := c.GetOAuth2ProviderBySlug(context.Background(), "test-app")
+	if err == nil {
+		t.Fatal("expected error for forbidden response")
+	}
+	if !errors.Is(err, ErrTokenExpired) {
+		t.Errorf("expected ErrTokenExpired, got %v", err)
+	}
+}
+
+func TestClearToken(t *testing.T) {
+	c := NewClient("http://localhost", "initial-token")
+	if !c.HasToken() {
+		t.Fatal("expected HasToken() to be true after NewClient with token")
+	}
+	c.ClearToken()
+	if c.HasToken() {
+		t.Fatal("expected HasToken() to be false after ClearToken()")
+	}
+}
+
 func TestCreateAPIToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

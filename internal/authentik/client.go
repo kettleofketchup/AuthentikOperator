@@ -20,6 +20,8 @@ import (
 
 var ErrProviderNotFound = errors.New("oauth2 provider not found for application slug")
 
+var ErrTokenExpired = errors.New("authentik API token invalid or expired")
+
 // clientConfig holds optional TLS configuration for the HTTP client.
 type clientConfig struct {
 	caCertPath         string
@@ -140,6 +142,13 @@ func (c *Client) HasToken() bool {
 	return c.token != ""
 }
 
+// ClearToken removes the current Bearer token (forces reload on next reconciliation).
+func (c *Client) ClearToken() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.token = ""
+}
+
 // GetOAuth2ProviderBySlug fetches the OAuth2 provider for a given application slug.
 // This is a two-step process:
 //  1. GET /api/v3/core/applications/{slug}/ to get the application PK
@@ -163,6 +172,10 @@ func (c *Client) GetOAuth2ProviderBySlug(ctx context.Context, slug string) (*OAu
 
 	if appResp.StatusCode == http.StatusNotFound {
 		return nil, ErrProviderNotFound
+	}
+	if appResp.StatusCode == http.StatusUnauthorized || appResp.StatusCode == http.StatusForbidden {
+		body, _ := io.ReadAll(io.LimitReader(appResp.Body, 1<<20))
+		return nil, fmt.Errorf("%w: %d for application %q: %s", ErrTokenExpired, appResp.StatusCode, slug, string(body))
 	}
 	if appResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(appResp.Body, 1<<20))
@@ -189,6 +202,10 @@ func (c *Client) GetOAuth2ProviderBySlug(ctx context.Context, slug string) (*OAu
 	}
 	defer provResp.Body.Close() //nolint:errcheck
 
+	if provResp.StatusCode == http.StatusUnauthorized || provResp.StatusCode == http.StatusForbidden {
+		body, _ := io.ReadAll(io.LimitReader(provResp.Body, 1<<20))
+		return nil, fmt.Errorf("%w: %d for providers (application %q): %s", ErrTokenExpired, provResp.StatusCode, slug, string(body))
+	}
 	if provResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(provResp.Body, 1<<20))
 		return nil, fmt.Errorf("authentik API returned %d for providers: %s", provResp.StatusCode, string(body))

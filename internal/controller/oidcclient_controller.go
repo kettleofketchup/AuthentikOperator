@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 
 	authv1alpha1 "github.com/kettleofketchup/AuthentikOperator/api/v1alpha1"
 	"github.com/kettleofketchup/AuthentikOperator/internal/authentik"
+	"github.com/kettleofketchup/AuthentikOperator/internal/bootstrap"
 	"github.com/kettleofketchup/AuthentikOperator/internal/hash"
 	"github.com/kettleofketchup/AuthentikOperator/internal/profiles"
 	"github.com/kettleofketchup/AuthentikOperator/internal/rollout"
@@ -39,6 +41,10 @@ type OIDCClientReconciler struct {
 	ReconcileInterval    time.Duration
 	TokenSecretName      string
 	TokenSecretNamespace string
+	// Bootstrap config for automatic token refresh on 403
+	BootstrapSecretName string // K8s secret name containing bootstrap token (e.g. "authentik-bootstrap")
+	BootstrapSecretKey  string // Key within that secret (e.g. "bootstrap_token")
+	BootstrapClientOpts []authentik.ClientOption
 }
 
 // +kubebuilder:rbac:groups=auth.kettleofketchup,resources=oidcclients,verbs=get;list;watch;create;update;patch;delete
@@ -89,6 +95,17 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	slug := oidcClient.Spec.Authentik.ApplicationSlug
 	provider, err := r.AuthentikClient.GetOAuth2ProviderBySlug(ctx, slug)
 	if err != nil {
+		// Auto-refresh on expired token
+		if stderrors.Is(err, authentik.ErrTokenExpired) {
+			logger.Info("Authentik API token expired, attempting refresh")
+			if refreshErr := r.refreshToken(ctx); refreshErr != nil {
+				logger.Error(refreshErr, "failed to refresh Authentik API token")
+			} else {
+				// Retry immediately with new token
+				return ctrl.Result{Requeue: true}, nil
+			}
+		}
+
 		logger.Error(err, "failed to fetch Authentik provider", "slug", slug)
 		meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
 			Type:               ConditionAuthentikProviderFound,
@@ -258,6 +275,68 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	return ctrl.Result{RequeueAfter: requeueInterval}, nil
+}
+
+// refreshToken re-bootstraps the API token using the bootstrap secret.
+// Called when the current token is expired/invalid (403).
+func (r *OIDCClientReconciler) refreshToken(ctx context.Context) error {
+	logger := log.FromContext(ctx)
+
+	if r.BootstrapSecretName == "" {
+		return fmt.Errorf("bootstrap secret not configured, cannot auto-refresh token")
+	}
+
+	// Read bootstrap token from K8s secret
+	bsSecret := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      r.BootstrapSecretName,
+		Namespace: r.TokenSecretNamespace,
+	}, bsSecret); err != nil {
+		return fmt.Errorf("reading bootstrap secret %q: %w", r.BootstrapSecretName, err)
+	}
+
+	bootstrapToken := string(bsSecret.Data[r.BootstrapSecretKey])
+	if bootstrapToken == "" {
+		return fmt.Errorf("bootstrap token empty in secret %q key %q", r.BootstrapSecretName, r.BootstrapSecretKey)
+	}
+
+	logger.Info("Token expired, re-bootstrapping from bootstrap secret")
+
+	// Clear the stale token
+	r.AuthentikClient.ClearToken()
+
+	// Run bootstrap with ForceRefresh to replace the stale secret
+	cfg := bootstrap.Config{
+		AuthentikURL:    r.AuthentikURL,
+		BootstrapToken:  bootstrapToken,
+		TokenIdentifier: "authentik-operator",
+		TokenSecretName: r.TokenSecretName,
+		Namespace:       r.TokenSecretNamespace,
+		ClientOpts:      r.BootstrapClientOpts,
+		ForceRefresh:    true,
+	}
+
+	if err := bootstrap.Run(ctx, r.Client, cfg); err != nil {
+		return fmt.Errorf("re-bootstrap failed: %w", err)
+	}
+
+	// Reload the new token
+	tokenSecret := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      r.TokenSecretName,
+		Namespace: r.TokenSecretNamespace,
+	}, tokenSecret); err != nil {
+		return fmt.Errorf("reading refreshed token secret: %w", err)
+	}
+
+	newToken := string(tokenSecret.Data["token"])
+	if newToken == "" {
+		return fmt.Errorf("refreshed token secret is empty")
+	}
+
+	r.AuthentikClient.SetToken(newToken)
+	logger.Info("Token refreshed successfully")
+	return nil
 }
 
 func toByteMap(data map[string]string) map[string][]byte {

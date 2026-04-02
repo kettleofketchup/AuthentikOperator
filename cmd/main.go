@@ -47,6 +47,8 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
+const defaultNamespace = "default"
+
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
@@ -126,7 +128,7 @@ func main() {
 
 		namespace := os.Getenv("POD_NAMESPACE")
 		if namespace == "" {
-			namespace = "default"
+			namespace = defaultNamespace
 		}
 
 		var bootstrapOpts []authentik.ClientOption
@@ -258,7 +260,7 @@ func main() {
 		tokenSecret := &corev1.Secret{}
 		namespace := os.Getenv("POD_NAMESPACE")
 		if namespace == "" {
-			namespace = "default"
+			namespace = defaultNamespace
 		}
 		err := mgr.GetAPIReader().Get(context.Background(), types.NamespacedName{
 			Name:      authentikTokenSecret,
@@ -286,7 +288,7 @@ func main() {
 
 	tokenNamespace := os.Getenv("POD_NAMESPACE")
 	if tokenNamespace == "" {
-		tokenNamespace = "default"
+		tokenNamespace = defaultNamespace
 	}
 
 	if err := (&controller.OIDCClientReconciler{

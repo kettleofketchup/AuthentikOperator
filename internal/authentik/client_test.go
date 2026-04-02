@@ -259,7 +259,9 @@ func TestNewClient_WithInsecureSkipVerify(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error with insecure skip verify: %v", err)
 	}
-	resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 }
 
 func TestNewClient_WithCACertData(t *testing.T) {
@@ -280,7 +282,9 @@ func TestNewClient_WithCACertData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error with CA cert: %v", err)
 	}
-	resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 }
 
 func TestNewClient_WithCACertPath(t *testing.T) {
@@ -305,7 +309,9 @@ func TestNewClient_WithCACertPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error with CA cert path: %v", err)
 	}
-	resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("closing response body: %v", err)
+	}
 }
 
 func TestGetCertificateByID(t *testing.T) {
@@ -321,7 +327,7 @@ func TestGetCertificateByID(t *testing.T) {
 			t.Errorf("expected GET, got %s", r.Method)
 		}
 
-		resp := map[string]interface{}{
+		resp := map[string]any{
 			"pk":                 "uuid-cert-123",
 			"name":               "authentik Self-signed Certificate",
 			"certificate_data":   "-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----\n",

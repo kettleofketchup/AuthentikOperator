@@ -13,6 +13,11 @@ import (
 	"time"
 )
 
+const (
+	testCertCN         = "test-cert"
+	pemTypeCertificate = "CERTIFICATE"
+)
+
 // newSelfSignedCert generates an ECDSA P256 self-signed certificate for testing.
 // It returns the certificate in PEM and raw DER formats.
 func newSelfSignedCert(t *testing.T) (pemBytes, derBytes []byte) {
@@ -25,7 +30,7 @@ func newSelfSignedCert(t *testing.T) (pemBytes, derBytes []byte) {
 
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: "test-cert"},
+		Subject:      pkix.Name{CommonName: testCertCN},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
@@ -37,7 +42,7 @@ func newSelfSignedCert(t *testing.T) (pemBytes, derBytes []byte) {
 	}
 
 	pemBytes = pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
+		Type:  pemTypeCertificate,
 		Bytes: derBytes,
 	})
 
@@ -54,7 +59,7 @@ func TestParseCertificates_PEM(t *testing.T) {
 	if len(certs) != 1 {
 		t.Fatalf("expected 1 certificate, got %d", len(certs))
 	}
-	if certs[0].Subject.CommonName != "test-cert" {
+	if certs[0].Subject.CommonName != testCertCN {
 		t.Errorf("expected CN=test-cert, got %s", certs[0].Subject.CommonName)
 	}
 	if len(pemOut) == 0 {
@@ -66,7 +71,7 @@ func TestParseCertificates_PEM(t *testing.T) {
 	if block == nil {
 		t.Fatal("returned PEM data could not be decoded")
 	}
-	if block.Type != "CERTIFICATE" {
+	if block.Type != pemTypeCertificate {
 		t.Errorf("expected CERTIFICATE block type, got %s", block.Type)
 	}
 }
@@ -84,7 +89,7 @@ func TestParseCertificates_Base64DER(t *testing.T) {
 	if len(certs) != 1 {
 		t.Fatalf("expected 1 certificate, got %d", len(certs))
 	}
-	if certs[0].Subject.CommonName != "test-cert" {
+	if certs[0].Subject.CommonName != testCertCN {
 		t.Errorf("expected CN=test-cert, got %s", certs[0].Subject.CommonName)
 	}
 	if len(pemOut) == 0 {
@@ -102,7 +107,7 @@ func TestParseCertificates_RawDER(t *testing.T) {
 	if len(certs) != 1 {
 		t.Fatalf("expected 1 certificate, got %d", len(certs))
 	}
-	if certs[0].Subject.CommonName != "test-cert" {
+	if certs[0].Subject.CommonName != testCertCN {
 		t.Errorf("expected CN=test-cert, got %s", certs[0].Subject.CommonName)
 	}
 	if len(pemOut) == 0 {
@@ -139,7 +144,7 @@ func TestCertFingerprint(t *testing.T) {
 				t.Errorf("expected colon at position %d, got %c", i, c)
 			}
 		} else {
-			if !((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')) {
+			if (c < '0' || c > '9') && (c < 'A' || c > 'F') {
 				t.Errorf("expected uppercase hex digit at position %d, got %c", i, c)
 			}
 			parts++
@@ -160,7 +165,7 @@ func TestCertToPEM(t *testing.T) {
 	if block == nil {
 		t.Fatal("PEM decode failed")
 	}
-	if block.Type != "CERTIFICATE" {
+	if block.Type != pemTypeCertificate {
 		t.Errorf("expected CERTIFICATE block, got %s", block.Type)
 	}
 	if len(rest) != 0 {

@@ -106,7 +106,7 @@ func parsePEM(data []byte) ([]*x509.Certificate, []byte, bool) {
 
 // certsToAllPEM encodes all certificates as PEM blocks.
 func certsToAllPEM(certs []*x509.Certificate) []byte {
-	var pemOut []byte
+	pemOut := make([]byte, 0, len(certs)*512)
 	for _, cert := range certs {
 		pemOut = append(pemOut, CertToPEM(cert.Raw)...)
 	}

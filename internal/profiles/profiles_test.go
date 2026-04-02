@@ -4,9 +4,11 @@ import (
 	"testing"
 )
 
+const testClientID = "test-client-id"
+
 func newTestData() OIDCData {
 	return OIDCData{
-		ClientID:     "test-client-id",
+		ClientID:     testClientID,
 		ClientSecret: "test-client-secret",
 		AuthorizeURL: "https://auth.example.com/application/o/authorize/",
 		TokenURL:     "https://auth.example.com/application/o/token/",
@@ -48,7 +50,7 @@ func TestGrafanaProfile(t *testing.T) {
 	checks := map[string]string{
 		"GF_AUTH_GENERIC_OAUTH_ENABLED":                    "true",
 		"GF_AUTH_GENERIC_OAUTH_NAME":                       "authentik",
-		"GF_AUTH_GENERIC_OAUTH_CLIENT_ID":                  "test-client-id",
+		"GF_AUTH_GENERIC_OAUTH_CLIENT_ID":                  testClientID,
 		"GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET":              "test-client-secret",
 		"GF_AUTH_GENERIC_OAUTH_AUTH_URL":                   "https://auth.example.com/application/o/authorize/",
 		"GF_AUTH_GENERIC_OAUTH_TOKEN_URL":                  "https://auth.example.com/application/o/token/",
@@ -73,7 +75,7 @@ func TestOpenWebUIProfile(t *testing.T) {
 	checks := map[string]string{
 		"ENABLE_OAUTH_SIGNUP": "true",
 		"OAUTH_PROVIDER_NAME": "authentik",
-		"OAUTH_CLIENT_ID":     "test-client-id",
+		"OAUTH_CLIENT_ID":     testClientID,
 		"OAUTH_CLIENT_SECRET": "test-client-secret",
 		"OPENID_PROVIDER_URL": "https://auth.example.com/application/o/test-app/",
 		"OAUTH_SCOPES":        "openid email profile",
@@ -118,7 +120,7 @@ func TestRagFlowProfile(t *testing.T) {
 
 	// Check individual keys
 	checks := map[string]string{
-		"client_id":     "test-client-id",
+		"client_id":     testClientID,
 		"client_secret": "test-client-secret",
 		"issuer":        "https://auth.example.com/application/o/test-app/",
 		"scope":         "openid email profile",
@@ -165,7 +167,7 @@ func TestHarborProfile(t *testing.T) {
 	result := Apply("harbor", data, nil)
 
 	checks := map[string]string{
-		"client_id":     "test-client-id",
+		"client_id":     testClientID,
 		"client_secret": "test-client-secret",
 		"issuer":        "https://auth.example.com/application/o/test-app/",
 		"scopes":        "openid email profile",
@@ -186,7 +188,7 @@ func TestGenericProfile(t *testing.T) {
 	result := Apply("generic", data, nil)
 
 	checks := map[string]string{
-		"clientId":     "test-client-id",
+		"clientId":     testClientID,
 		"clientSecret": "test-client-secret",
 		"authorizeUrl": "https://auth.example.com/application/o/authorize/",
 		"tokenUrl":     "https://auth.example.com/application/o/token/",
@@ -216,7 +218,7 @@ func TestOverrides(t *testing.T) {
 	if result["GF_AUTH_GENERIC_OAUTH_SCOPES"] != "openid email profile groups" {
 		t.Error("override did not replace default scopes")
 	}
-	if result["GF_AUTH_GENERIC_OAUTH_CLIENT_ID"] != "test-client-id" {
+	if result["GF_AUTH_GENERIC_OAUTH_CLIENT_ID"] != testClientID {
 		t.Error("non-overridden key missing")
 	}
 }
@@ -225,7 +227,7 @@ func TestUnknownProfileFallsBackToGeneric(t *testing.T) {
 	data := newTestData()
 	result := Apply("nonexistent", data, nil)
 
-	if result["clientId"] != "test-client-id" {
+	if result["clientId"] != testClientID {
 		t.Error("unknown profile should fall back to generic")
 	}
 }
@@ -241,12 +243,12 @@ func TestTemplateOverrides(t *testing.T) {
 	result := Apply("generic", data, overrides)
 
 	checks := map[string]string{
-		"social_auth_oidc_key":    "test-client-id",
+		"social_auth_oidc_key":    testClientID,
 		"social_auth_oidc_secret": "test-client-secret",
 		"oidc_endpoint":           "https://auth.example.com/application/o/test-app/",
 		"static_value":            "no-template-here",
 		// Original generic keys should still be present
-		"clientId":     "test-client-id",
+		"clientId":     testClientID,
 		"clientSecret": "test-client-secret",
 	}
 
@@ -330,7 +332,7 @@ func TestTemplateOverrideInvalidTemplate(t *testing.T) {
 		t.Errorf("invalid template should keep original, got %q", result["bad_template"])
 	}
 	// Valid template should resolve
-	if result["good_key"] != "test-client-id" {
+	if result["good_key"] != testClientID {
 		t.Errorf("valid template should resolve, got %q", result["good_key"])
 	}
 }

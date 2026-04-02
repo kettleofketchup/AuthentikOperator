@@ -337,6 +337,55 @@ func (c *Client) viewTokenKey(ctx context.Context, identifier string) (string, e
 	return keyResp.Key, nil
 }
 
+// WaitForReady polls GET /api/v3/root/config/ (unauthenticated) until Authentik
+// returns HTTP 200, or until timeout elapses. It retries every 5 seconds and
+// logs each attempt. Returns nil on success, error on timeout or context
+// cancellation.
+func (c *Client) WaitForReady(ctx context.Context, timeout time.Duration) error {
+	healthURL := fmt.Sprintf("%s/api/v3/root/config/", c.baseURL)
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	attempt := 0
+	for {
+		attempt++
+		reqCtx, cancel := context.WithDeadline(ctx, deadline)
+		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, healthURL, nil)
+		if err != nil {
+			cancel()
+			return fmt.Errorf("creating health check request: %w", err)
+		}
+
+		resp, err := c.httpClient.Do(req)
+		cancel()
+		if err == nil {
+			io.Copy(io.Discard, resp.Body) //nolint:errcheck
+			resp.Body.Close()              //nolint:errcheck
+			if resp.StatusCode == http.StatusOK {
+				log.Printf("authentik is ready (attempt %d)", attempt)
+				return nil
+			}
+			log.Printf("authentik not ready yet (attempt %d): HTTP %d", attempt, resp.StatusCode)
+		} else {
+			log.Printf("authentik not ready yet (attempt %d): %v", attempt, err)
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("authentik did not become ready within %s", timeout)
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled while waiting for Authentik: %w", ctx.Err())
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return fmt.Errorf("authentik did not become ready within %s", timeout)
+			}
+		}
+	}
+}
+
 func (c *Client) setAuth(req *http.Request) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

@@ -22,7 +22,14 @@ func TestBootstrap(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		// Verify Bearer auth (NOT Basic auth)
+		// Health endpoint is unauthenticated
+		if r.URL.Path == "/api/v3/root/config/" && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"version": "2026.2.0"}`))
+			return
+		}
+
+		// All other endpoints require Bearer auth
 		auth := r.Header.Get("Authorization")
 		if auth != "Bearer bootstrap-token-123" {
 			t.Errorf("expected Bearer bootstrap-token-123, got %s", auth)

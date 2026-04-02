@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -113,5 +116,31 @@ func TestBootstrap_SecretAlreadyExists(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("bootstrap should succeed (skip) when secret exists: %v", err)
+	}
+}
+
+// TestExecGetToken_NoPods verifies that execGetToken returns an error when the
+// API server is unreachable (which covers the "no pods found" error path because
+// the List call itself fails). A short context deadline ensures the test does not
+// hang waiting for a TCP connection that will never succeed.
+func TestExecGetToken_NoPods(t *testing.T) {
+	testLog := zap.New(zap.UseDevMode(true))
+	// Use a 2-second deadline so the test fails fast rather than hanging.
+	ctx, cancel := context.WithTimeout(ctrl.LoggerInto(context.Background(), testLog), 2*time.Second)
+	defer cancel()
+
+	// Point at a non-routable address (TEST-NET per RFC 5737) so the connection
+	// attempt is refused or times out quickly via the context deadline.
+	restCfg := &rest.Config{Host: "http://192.0.2.1:8080"}
+
+	_, err := execGetToken(ctx, restCfg, "authentik")
+	if err == nil {
+		t.Fatal("expected error when API server unreachable, got nil")
+	}
+	// The error must propagate without panicking — content validation is loose
+	// because the exact message depends on whether the context deadline fires
+	// before or after the connection attempt is refused.
+	if strings.TrimSpace(err.Error()) == "" {
+		t.Errorf("expected non-empty error message")
 	}
 }

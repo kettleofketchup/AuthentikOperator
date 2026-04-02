@@ -74,6 +74,7 @@ func main() {
 	var bootstrapMode bool
 	var authentikURL string
 	var authentikTokenSecret string
+	var authentikNamespace string
 	var reconcileInterval time.Duration
 	var authentikCACertPath string
 	var authentikCACertData string
@@ -106,6 +107,8 @@ func main() {
 		"Inline CA certificate data (PEM, DER, or base64-encoded DER) for Authentik API TLS verification")
 	flag.BoolVar(&authentikInsecureSkipVerify, "authentik-insecure-skip-verify", false,
 		"Skip TLS certificate verification for Authentik API (NOT recommended for production)")
+	flag.StringVar(&authentikNamespace, "authentik-namespace", "authentik",
+		"Namespace where Authentik server pods run (used for exec-based token creation)")
 	opts := zap.Options{
 		Development: false,
 	}
@@ -143,12 +146,14 @@ func main() {
 		}
 
 		bsCfg := bootstrap.Config{
-			AuthentikURL:    os.Getenv("AUTHENTIK_URL"),
-			BootstrapToken:  os.Getenv("AUTHENTIK_BOOTSTRAP_TOKEN"),
-			TokenIdentifier: "authentik-operator",
-			TokenSecretName: os.Getenv("TOKEN_SECRET_NAME"),
-			Namespace:       namespace,
-			ClientOpts:      bootstrapOpts,
+			AuthentikURL:       os.Getenv("AUTHENTIK_URL"),
+			BootstrapToken:     os.Getenv("AUTHENTIK_BOOTSTRAP_TOKEN"),
+			TokenIdentifier:    "authentik-operator",
+			TokenSecretName:    os.Getenv("TOKEN_SECRET_NAME"),
+			Namespace:          namespace,
+			ClientOpts:         bootstrapOpts,
+			RestConfig:         cfg,
+			AuthentikNamespace: authentikNamespace,
 		}
 
 		if err := bootstrap.Run(ctrl.LoggerInto(context.Background(), setupLog), c, bsCfg); err != nil {

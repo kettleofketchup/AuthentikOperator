@@ -104,9 +104,21 @@ func execGetToken(ctx context.Context, restCfg *rest.Config, authentikNamespace 
 		return "", fmt.Errorf("exec stream error (stderr: %s): %w", strings.TrimSpace(stderr.String()), err)
 	}
 
-	tokenKey := strings.TrimSpace(stdout.String())
+	// ak shell dumps a banner, JSON log lines, and imported-objects notice to
+	// stdout before our print() output. The actual token is always the last
+	// non-empty line.
+	rawOutput := stdout.String()
+	lines := strings.Split(rawOutput, "\n")
+	var tokenKey string
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line != "" {
+			tokenKey = line
+			break
+		}
+	}
 	if tokenKey == "" {
-		return "", fmt.Errorf("ak shell returned empty output (stderr: %s)", strings.TrimSpace(stderr.String()))
+		return "", fmt.Errorf("ak shell returned no usable output (stderr: %s)", strings.TrimSpace(stderr.String()))
 	}
 
 	log.Info("Token retrieved via ak shell exec")

@@ -6,6 +6,9 @@ title: Grafana Profile
 
 The `grafana` profile maps OIDC source data to Grafana's [Generic OAuth](https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/configure-authentication/generic-oauth/) environment variables. This lets Grafana authenticate users against Authentik with no manual secret wiring.
 
+!!! warning "Users Must Have Email Addresses"
+    Grafana requires an email address to create user accounts. If your users come from LDAP/Active Directory and the `mail` attribute is not populated, Grafana login will fail with **"Provider didn't return an email address"**. Ensure your LDAP property mappings include an email fallback (e.g., `username@domain`) or that all AD users have the `mail` attribute set.
+
 ## Key Mapping
 
 | Secret Key | Source Value |
@@ -16,11 +19,19 @@ The `grafana` profile maps OIDC source data to Grafana's [Generic OAuth](https:/
 | `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` | `clientSecret` |
 | `GF_AUTH_GENERIC_OAUTH_AUTH_URL` | `authorizeUrl` |
 | `GF_AUTH_GENERIC_OAUTH_TOKEN_URL` | `tokenUrl` |
-| `GF_AUTH_GENERIC_OAUTH_API_URL` | `userinfoUrl` |
+| `GF_AUTH_GENERIC_OAUTH_API_URL` | `userinfoUrl` (trailing slash stripped) |
 | `GF_AUTH_GENERIC_OAUTH_SCOPES` | `scopes` (default: `openid email profile`) |
 | `GF_AUTH_SIGNOUT_REDIRECT_URL` | `logoutUrl` — Authentik end-session endpoint |
 | `GF_AUTH_OAUTH_AUTO_LOGIN` | `"true"` (static) — skip Grafana login form |
 | `GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN` | `"true"` (static) — Admin role grants Server Admin |
+| `GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP` | `"true"` (static) — auto-create Grafana accounts |
+| `GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH` | `"email"` (static) — extract email from userinfo |
+| `GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH` | `"name"` (static) — extract display name from userinfo |
+| `GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH` | `"preferred_username"` (static) — extract login from userinfo |
+| `GF_AUTH_GENERIC_OAUTH_USE_PKCE` | `"true"` (static) — PKCE for token exchange |
+
+!!! note "API URL trailing slash"
+    The `api_url` has its trailing slash stripped to prevent Grafana 12+ from appending `/emails` to the userinfo endpoint, which Authentik does not serve and returns a 404.
 
 ## Example CR
 
@@ -36,17 +47,8 @@ Map Authentik groups to Grafana roles using a JMESPath expression:
 spec:
   secretOverrides:
     GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: >-
-      contains(groups, 'admins') && 'Admin' || 'Viewer'
-```
-
-### Allow Sign Up
-
-Automatically create Grafana user accounts for authenticated Authentik users:
-
-```yaml title="oidcclient.yaml"
-spec:
-  secretOverrides:
-    GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
+      contains(groups, 'Grafana Admins') && 'Admin' || contains(groups, 'Grafana Editors') && 'Editor' || 'Viewer'
+    GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT: "true"
 ```
 
 ### Custom Scopes
@@ -57,6 +59,24 @@ Request additional scopes such as `groups` for role mapping:
 spec:
   secretOverrides:
     GF_AUTH_GENERIC_OAUTH_SCOPES: "openid email profile groups"
+```
+
+### TLS CA Certificate
+
+If Authentik uses a private CA, mount the CA cert and reference it:
+
+```yaml title="values.yaml"
+grafana:
+  extraSecretMounts:
+    - name: edge-ca
+      secretName: edge-wildcard-tls
+      defaultMode: 0440
+      mountPath: /etc/ssl/certs/edge-ca.crt
+      subPath: tls.crt
+      readOnly: true
+  grafana.ini:
+    auth.generic_oauth:
+      tls_client_ca: /etc/ssl/certs/edge-ca.crt
 ```
 
 ## Consuming the Secret in Grafana
@@ -85,11 +105,6 @@ The operator creates a Secret with all the `GF_AUTH_GENERIC_OAUTH_*` keys. Grafa
             secretKeyRef:
               name: grafana-oauth
               key: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
-        GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
-          valueFrom:
-            secretKeyRef:
-              name: grafana-oauth
-              key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
     ```
 
 !!! tip "Rollout Restart"
@@ -97,33 +112,61 @@ The operator creates a Secret with all the `GF_AUTH_GENERIC_OAUTH_*` keys. Grafa
 
 ## Authentik Blueprint
 
-Create the Grafana OIDC provider in Authentik using a blueprint:
+Create the Grafana OIDC provider in Authentik using a blueprint. The `email` scope mapping **must** be included — without it, the userinfo endpoint won't return the user's email and Grafana login will fail.
 
 ```yaml title="grafana-blueprint.yaml"
 version: 1
 metadata:
   name: Grafana OIDC Provider
 entries:
-  - model: authentik_providers_oauth2.oauth2provider
-    id: provider-grafana
+  # Custom groups scope for role mapping
+  - model: authentik_providers_oauth2.scopemapping
+    identifiers:
+      name: "OIDC Groups"
+    id: groups-scope
     attrs:
+      scope_name: groups
+      description: "User's group memberships"
+      expression: |
+        return {"groups": [group.name for group in request.user.groups.all()]}
+
+  - model: authentik_providers_oauth2.oauth2provider
+    identifiers:
       name: grafana-oidc
-      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-flow]]
+    id: oidc-provider
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
       client_type: confidential
-      redirect_uris: "https://grafana.example.com/login/generic_oauth"
+      client_id: grafana
+      redirect_uris:
+        - matching_mode: strict
+          url: "https://grafana.example.com/login/generic_oauth"
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       property_mappings:
-        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
-        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
-        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [name, "OIDC Groups"]]
 
   - model: authentik_core.application
+    identifiers:
+      slug: grafana
     attrs:
       name: Grafana
-      slug: grafana
-      provider: !KeyOf provider-grafana
-      meta_launch_url: "https://grafana.example.com"
+      provider: !KeyOf oidc-provider
+
+  # Groups for role mapping
+  - model: authentik_core.group
+    identifiers:
+      name: Grafana Admins
+    state: created
+
+  - model: authentik_core.group
+    identifiers:
+      name: Grafana Editors
+    state: created
 ```
 
 !!! info "Blueprint Deployment"
-    Authentik auto-generates `client_id` and `client_secret` when the blueprint creates the OAuth2 provider. The operator reads those values via the API -- you never need to copy them manually.
+    Authentik auto-generates `client_id` and `client_secret` when the blueprint creates the OAuth2 provider. The operator reads those values via the API — you never need to copy them manually.

@@ -89,11 +89,16 @@ func grafana(data OIDCData) map[string]string {
 		"GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET":              data.ClientSecret,
 		"GF_AUTH_GENERIC_OAUTH_AUTH_URL":                   data.AuthorizeURL,
 		"GF_AUTH_GENERIC_OAUTH_TOKEN_URL":                  data.TokenURL,
-		"GF_AUTH_GENERIC_OAUTH_API_URL":                    data.UserinfoURL,
+		"GF_AUTH_GENERIC_OAUTH_API_URL":                    strings.TrimRight(data.UserinfoURL, "/"),
 		"GF_AUTH_GENERIC_OAUTH_SCOPES":                     data.Scopes,
 		"GF_AUTH_SIGNOUT_REDIRECT_URL":                     data.LogoutURL,
 		"GF_AUTH_OAUTH_AUTO_LOGIN":                         "true",
 		"GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN": "true",
+		"GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP":              "true",
+		"GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH":       "email",
+		"GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH":        "name",
+		"GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH":       "preferred_username",
+		"GF_AUTH_GENERIC_OAUTH_USE_PKCE":                   "true",
 	}
 }
 

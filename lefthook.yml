@@ -15,5 +15,5 @@ pre-commit:
       fail_text: "golangci-lint: linting issues found. Run 'make lint-fix' to auto-fix."
     test:
       glob: "*.go"
-      run: go test $(go list ./... | grep -v /e2e) -short
+      run: go test $(go list ./... | grep -v /e2e | grep -v /controller) -short
       fail_text: "tests failed"

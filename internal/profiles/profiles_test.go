@@ -54,11 +54,16 @@ func TestGrafanaProfile(t *testing.T) {
 		"GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET":              "test-client-secret",
 		"GF_AUTH_GENERIC_OAUTH_AUTH_URL":                   "https://auth.example.com/application/o/authorize/",
 		"GF_AUTH_GENERIC_OAUTH_TOKEN_URL":                  "https://auth.example.com/application/o/token/",
-		"GF_AUTH_GENERIC_OAUTH_API_URL":                    "https://auth.example.com/application/o/userinfo/",
+		"GF_AUTH_GENERIC_OAUTH_API_URL":                    "https://auth.example.com/application/o/userinfo",
 		"GF_AUTH_GENERIC_OAUTH_SCOPES":                     "openid email profile",
 		"GF_AUTH_SIGNOUT_REDIRECT_URL":                     "https://auth.example.com/application/o/test-app/end-session/",
 		"GF_AUTH_OAUTH_AUTO_LOGIN":                         "true",
 		"GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN": "true",
+		"GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP":              "true",
+		"GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH":       "email",
+		"GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH":        "name",
+		"GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH":       "preferred_username",
+		"GF_AUTH_GENERIC_OAUTH_USE_PKCE":                   "true",
 	}
 
 	for key, expected := range checks {

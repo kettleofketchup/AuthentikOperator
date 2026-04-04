@@ -11,11 +11,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	applyconfigscorev1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/kubernetes"
+	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
-	applyconfigscorev1 "k8s.io/client-go/applyconfigurations/core/v1"
-	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -24,15 +24,15 @@ import (
 
 // Config holds bootstrap configuration.
 type Config struct {
-	AuthentikURL        string
-	BootstrapToken      string // Bearer token (AUTHENTIK_BOOTSTRAP_TOKEN)
-	TokenIdentifier     string
-	TokenSecretName     string
-	Namespace           string
-	ClientOpts          []authentik.ClientOption
-	ForceRefresh        bool   // Delete existing secret before re-creating
-	RestConfig          *rest.Config
-	AuthentikNamespace  string // Namespace where Authentik server pods run (default "authentik")
+	AuthentikURL       string
+	BootstrapToken     string // Bearer token (AUTHENTIK_BOOTSTRAP_TOKEN)
+	TokenIdentifier    string
+	TokenSecretName    string
+	Namespace          string
+	ClientOpts         []authentik.ClientOption
+	ForceRefresh       bool // Delete existing secret before re-creating
+	RestConfig         *rest.Config
+	AuthentikNamespace string // Namespace where Authentik server pods run (default "authentik")
 }
 
 // readinessTimeout is the maximum time Run will wait for Authentik to become

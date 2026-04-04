@@ -1,0 +1,19 @@
+pre-commit:
+  parallel: true
+  commands:
+    gofmt:
+      glob: "*.go"
+      run: gofmt -l -d {staged_files} && test -z "$(gofmt -l {staged_files})"
+      fail_text: "gofmt: files not formatted. Run 'gofmt -w .' to fix."
+    govet:
+      glob: "*.go"
+      run: go vet ./...
+      fail_text: "go vet: issues found"
+    golangci-lint:
+      glob: "*.go"
+      run: make lint
+      fail_text: "golangci-lint: linting issues found. Run 'make lint-fix' to auto-fix."
+    test:
+      glob: "*.go"
+      run: go test $(go list ./... | grep -v /e2e) -short
+      fail_text: "tests failed"

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"time"
@@ -145,7 +146,8 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// 3. Build OIDC data and apply profile
-	oidcData := profiles.BuildOIDCData(r.AuthentikURL, slug, provider.ClientID, provider.ClientSecret)
+	redirectURIs := parseRedirectURIs(provider.RedirectURIs)
+	oidcData := profiles.BuildOIDCData(r.AuthentikURL, slug, provider.ClientID, provider.ClientSecret, redirectURIs)
 	secretData := profiles.ApplyWithCert(oidcClient.Spec.SecretProfile, oidcData, oidcClient.Spec.SecretOverrides, signingCert)
 
 	// 4. Compute hash and compare
@@ -345,6 +347,33 @@ func toByteMap(data map[string]string) map[string][]byte {
 		result[k] = []byte(v)
 	}
 	return result
+}
+
+// parseRedirectURIs extracts URL strings from the Authentik provider's redirect_uris field.
+// Authentik returns redirect URIs as a JSON array of objects with "url" and "matching_mode" keys.
+func parseRedirectURIs(raw json.RawMessage) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	// Try as array of objects: [{"url": "...", "matching_mode": "..."}]
+	var structured []struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(raw, &structured); err == nil && len(structured) > 0 {
+		uris := make([]string, 0, len(structured))
+		for _, s := range structured {
+			if s.URL != "" {
+				uris = append(uris, s.URL)
+			}
+		}
+		return uris
+	}
+	// Fallback: try as plain string array
+	var plain []string
+	if err := json.Unmarshal(raw, &plain); err == nil {
+		return plain
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager

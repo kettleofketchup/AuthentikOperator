@@ -20,7 +20,7 @@ func newTestData() OIDCData {
 }
 
 func TestBuildOIDCData(t *testing.T) {
-	data := BuildOIDCData("https://auth.example.com", "test-app", "cid", "csecret")
+	data := BuildOIDCData("https://auth.example.com", "test-app", "cid", "csecret", nil)
 
 	// Token and userinfo URLs are GLOBAL (not per-slug)
 	if data.TokenURL != "https://auth.example.com/application/o/token/" {
@@ -70,6 +70,47 @@ func TestGrafanaProfile(t *testing.T) {
 		if result[key] != expected {
 			t.Errorf("grafana profile: key %s = %q, want %q", key, result[key], expected)
 		}
+	}
+}
+
+func TestGrafanaProfile_WithRedirectURIs(t *testing.T) {
+	data := newTestData()
+	data.RedirectURIs = []string{"https://grafana.example.com/login/generic_oauth"}
+	result := Apply("grafana", data, nil)
+
+	expected := "https://grafana.example.com/"
+	if result["GF_SERVER_ROOT_URL"] != expected {
+		t.Errorf("grafana profile: GF_SERVER_ROOT_URL = %q, want %q", result["GF_SERVER_ROOT_URL"], expected)
+	}
+}
+
+func TestGrafanaProfile_WithoutRedirectURIs(t *testing.T) {
+	data := newTestData()
+	result := Apply("grafana", data, nil)
+
+	if _, ok := result["GF_SERVER_ROOT_URL"]; ok {
+		t.Error("grafana profile: GF_SERVER_ROOT_URL should not be set when no redirect URIs")
+	}
+}
+
+func TestAppRootURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		uris     []string
+		expected string
+	}{
+		{"with path", []string{"https://grafana.example.com/login/generic_oauth"}, "https://grafana.example.com/"},
+		{"no path", []string{"https://grafana.example.com"}, "https://grafana.example.com/"},
+		{"empty", nil, ""},
+		{"multiple", []string{"https://first.example.com/callback", "https://second.example.com/callback"}, "https://first.example.com/"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := OIDCData{RedirectURIs: tt.uris}
+			if got := data.AppRootURL(); got != tt.expected {
+				t.Errorf("AppRootURL() = %q, want %q", got, tt.expected)
+			}
+		})
 	}
 }
 

@@ -82,7 +82,7 @@ func resolveOverrides(overrides map[string]string, data OIDCData) map[string]str
 }
 
 func grafana(data OIDCData) map[string]string {
-	return map[string]string{
+	result := map[string]string{
 		"GF_AUTH_GENERIC_OAUTH_ENABLED":                    "true",
 		"GF_AUTH_GENERIC_OAUTH_NAME":                       "authentik",
 		"GF_AUTH_GENERIC_OAUTH_CLIENT_ID":                  data.ClientID,
@@ -100,6 +100,10 @@ func grafana(data OIDCData) map[string]string {
 		"GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH":       "preferred_username",
 		"GF_AUTH_GENERIC_OAUTH_USE_PKCE":                   "true",
 	}
+	if rootURL := data.AppRootURL(); rootURL != "" {
+		result["GF_SERVER_ROOT_URL"] = rootURL
+	}
+	return result
 }
 
 func openwebui(data OIDCData) map[string]string {

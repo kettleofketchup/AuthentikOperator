@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	applyconfigscorev1 "k8s.io/client-go/applyconfigurations/core/v1"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -46,6 +47,7 @@ type OIDCClientReconciler struct {
 	BootstrapSecretName string // K8s secret name containing bootstrap token (e.g. "authentik-bootstrap")
 	BootstrapSecretKey  string // Key within that secret (e.g. "bootstrap_token")
 	BootstrapClientOpts []authentik.ClientOption
+	RestConfig          *rest.Config // For exec-based token refresh via ak shell
 }
 
 // +kubebuilder:rbac:groups=auth.kettleofketchup,resources=oidcclients,verbs=get;list;watch;create;update;patch;delete
@@ -307,7 +309,8 @@ func (r *OIDCClientReconciler) refreshToken(ctx context.Context) error {
 	// Clear the stale token
 	r.AuthentikClient.ClearToken()
 
-	// Run bootstrap with ForceRefresh to replace the stale secret
+	// Run bootstrap with ForceRefresh to replace the stale secret.
+	// RestConfig enables the exec path (ak shell) which bypasses HTTP API auth.
 	cfg := bootstrap.Config{
 		AuthentikURL:    r.AuthentikURL,
 		BootstrapToken:  bootstrapToken,
@@ -316,6 +319,7 @@ func (r *OIDCClientReconciler) refreshToken(ctx context.Context) error {
 		Namespace:       r.TokenSecretNamespace,
 		ClientOpts:      r.BootstrapClientOpts,
 		ForceRefresh:    true,
+		RestConfig:      r.RestConfig,
 	}
 
 	if err := bootstrap.Run(ctx, r.Client, cfg); err != nil {

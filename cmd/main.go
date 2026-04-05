@@ -307,6 +307,7 @@ func main() {
 		BootstrapSecretName:  "authentik-bootstrap",
 		BootstrapSecretKey:   "bootstrap_token",
 		BootstrapClientOpts:  clientOpts,
+		RestConfig:           mgr.GetConfig(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "OIDCClient")
 		os.Exit(1)

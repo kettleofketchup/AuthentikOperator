@@ -25,6 +25,13 @@ build:
     docker tag {{ DOCKER_TAG }} {{ DOCKER_LATEST }}
     @echo "Built: {{ DOCKER_TAG }}"
 
+# Run full test suite in Docker (includes envtest controller tests)
+test:
+    @echo "Building test image..."
+    cd {{ PROJECT_ROOT }} && docker build -f Dockerfile.test -t {{ IMAGE_NAME }}-test .
+    @echo "Running tests..."
+    docker run --rm {{ IMAGE_NAME }}-test
+
 # Push Docker image to registry
 push: build
     @echo "Pushing Docker image..."

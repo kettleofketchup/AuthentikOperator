@@ -30,6 +30,8 @@ Thumbs.db
 *.so
 *.dylib
 *.test
+!Dockerfile.test
+!Dockerfile.test.dockerignore
 *.out
 go.work
 go.work.sum

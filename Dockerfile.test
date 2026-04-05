@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1
+FROM golang:1.25
+
+WORKDIR /workspace
+
+# Cache dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy everything (uses Dockerfile.test.dockerignore)
+COPY . .
+
+# Install setup-envtest and download K8s binaries
+RUN go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.23 && \
+    setup-envtest use --bin-dir /workspace/bin/k8s
+
+ENTRYPOINT ["sh", "-c", "KUBEBUILDER_ASSETS=$(setup-envtest use --bin-dir /workspace/bin/k8s -p path) go test $(go list ./... | grep -v /e2e) -v -coverprofile cover.out"]

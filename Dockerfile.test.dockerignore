@@ -1,0 +1,6 @@
+# Test Dockerfile ignore — include everything needed for tests
+bin/
+.git/
+.worktrees/
+*.md
+LICENSE

@@ -124,7 +124,7 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// Provider found
-	meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
+	providerFoundChanged := meta.SetStatusCondition(&oidcClient.Status.Conditions, metav1.Condition{
 		Type:               ConditionAuthentikProviderFound,
 		Status:             metav1.ConditionTrue,
 		Reason:             "Found",
@@ -155,6 +155,18 @@ func (r *OIDCClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// 4. Compute hash and compare
 	newHash := hash.ComputeSecretHash(secretData)
 	if newHash == oidcClient.Status.SecretHash {
+		// Secret already in sync — the common steady state. Still persist
+		// any status condition change before returning. Without this, a
+		// condition that flipped this reconcile (e.g. AuthentikProviderFound
+		// going back to True after a transient Authentik outage that wrote
+		// False) is never written, leaving the status permanently stale once
+		// the secret stops changing.
+		if providerFoundChanged {
+			if err := r.Status().Update(ctx, oidcClient); err != nil {
+				logger.Error(err, "failed to update status")
+				return ctrl.Result{}, err
+			}
+		}
 		return ctrl.Result{RequeueAfter: requeueInterval}, nil
 	}
 
